@@ -80,10 +80,33 @@ npm test        # vitest: pure modules
 npm run build   # dist/ui (panel) + dist/sandbox/code.js
 ```
 
-Load `express-addon/` (with its `manifest.json`, `dist/`, and assets) as a
-development add-on in Adobe Express, with the backend running. The panel
-creates the 8-node LUMA SKIN campaign natively, walks the demo states, and
-applies the selected repair in place — no flattened images.
+**One-time setup (needs your macOS password to trust a local SSL cert):**
+
+```bash
+cd express-addon
+npx @adobe/ccweb-add-on-ssl setup --hostname localhost
+```
+
+**Run in Adobe Express:**
+
+```bash
+cd express-addon
+npm run adobe:start   # builds, packages adobe-src/, starts the dev server
+```
+
+The CLI prints an Adobe Express URL — open it while logged into
+express.adobe.com. The panel creates the 8-node LUMA SKIN campaign natively,
+walks the demo states, and applies the selected repair in place — no flattened
+images. In the **Bring your own** section you can: replace the hero with your
+own poster (native image node via `loadBitmapImage`/`createImageContainer`),
+upload brand guidelines (`.txt/.md`) whose extracted palette/locks/forbidden
+phrases flow into the repair pipeline, and upload inspiration images (e.g. a
+Pinterest board export) for deterministic, honestly labeled style analysis.
+
+A labeled development harness is also available outside Express:
+`python3 -m http.server 8099` inside `express-addon/dist/ui`, then open
+`http://localhost:8099/?harness=1` (in-memory stand-in, clearly marked as not
+the Adobe integration).
 
 ## Honest limitations (never hidden)
 
