@@ -182,22 +182,20 @@ export default function App() {
     }
     (async () => {
       try {
-        // The Add-on UI SDK is an ES MODULE (default export), not a window
-        // global — load it with a dynamic import (@vite-ignore keeps it
-        // runtime-resolved), falling back to a global if Adobe ever provides one.
-        let sdk: NonNullable<Window["addOnUISdk"]> | undefined = window.addOnUISdk;
+        // The SDK was loaded eagerly by an inline module in index.html (it
+        // must attach its host-handshake listener early). Wait for that, with
+        // a dynamic-import fallback just in case.
+        let sdk = window.__creativednaSdk ?? window.addOnUISdk;
         if (!sdk) {
-          logInit("sdk global: absent — loading sdk.js as ES module…");
-          const mod: unknown = await import(
-            /* @vite-ignore */ "https://new.express.adobe.com/static/add-on-sdk/sdk.js"
-          );
-          const m = mod as { default?: Window["addOnUISdk"] } & Window["addOnUISdk"];
-          sdk = m?.default ?? m;
+          logInit("waiting for eager sdk.js load…");
+          sdk = await new Promise<NonNullable<Window["__creativednaSdk"]>>((resolve, reject) => {
+            window.addEventListener("creativedna-sdk", (e) => resolve((e as CustomEvent).detail), { once: true });
+            window.addEventListener("creativedna-sdk-error",
+              () => reject(new Error(window.__creativednaSdkError ?? "sdk.js load failed")), { once: true });
+            setTimeout(() => reject(new Error("sdk.js load timeout (12s) — check network/ad-blocker")), 12000);
+          });
         }
-        logInit(`sdk: ${sdk ? "loaded (module)" : "NOT LOADED"}`);
-        if (!sdk) {
-          throw new Error("add-on-sdk sdk.js did not load (script blocked or missing)");
-        }
+        logInit(`sdk: loaded (${window.__creativednaSdk ? "eager" : "global"})`);
         await sdk.ready;
         logInit("ready: resolved");
         const inst = sdk.instance;

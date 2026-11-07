@@ -5,6 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CreativeDNA</title>
     <link rel="stylesheet" href="./styles.css" />
+    <script type="module">
+      // Load the Add-on UI SDK as early as possible: it attaches a
+      // window "message" listener waiting for the host's initPort handshake.
+      // Loading it lazily from the app bundle can miss that message.
+      import("https://new.express.adobe.com/static/add-on-sdk/sdk.js")
+        .then((m) => {
+          window.__creativednaSdk = m.default ?? m;
+          window.dispatchEvent(
+            new CustomEvent("creativedna-sdk", { detail: window.__creativednaSdk })
+          );
+        })
+        .catch((e) => {
+          window.__creativednaSdkError = String(e);
+          window.dispatchEvent(new Event("creativedna-sdk-error"));
+        });
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -147,4 +147,6 @@ declare module "https://new.express.adobe.com/static/add-on-sdk/sdk.js" {
 
 interface Window {
   addOnUISdk?: AddOnUISdkGlobal;
+  __creativednaSdk?: AddOnUISdkGlobal;
+  __creativednaSdkError?: string;
 }
