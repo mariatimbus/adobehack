@@ -1,0 +1,15 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Node / add-on
+node_modules/
+express-addon/dist/
+
+# Runtime telemetry (benchmark outputs results.csv / results.json ARE committed)
+backend/benchmark_data/telemetry.jsonl
+
+# OS
+.DS_Store

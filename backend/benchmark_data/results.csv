@@ -1,0 +1,16 @@
+case_id,variant,predicted,ground_truth,correct,hard_pass,hard_fail,hard_unknown,editable_nodes_retained,total_nodes,failed_rules,median_latency_ms,provider_mode,soft_J
+case-01-topzone-longheadline,uniform_scale,infeasible,feasible,False,9,2,0,8,8,safe_area;text_overflow,0.1,heuristic,
+case-01-topzone-longheadline,heuristic_zones,infeasible,feasible,False,8,3,0,8,8,locks;safe_area;text_overflow,0.507,heuristic,
+case-01-topzone-longheadline,ai_strategies,feasible,feasible,True,11,0,0,7,8,,8.957,fixture,0.7282
+case-02-infeasible-topzone,uniform_scale,infeasible,infeasible,True,9,2,0,8,8,safe_area;text_overflow,0.081,heuristic,
+case-02-infeasible-topzone,heuristic_zones,infeasible,infeasible,True,9,2,0,8,8,safe_area;text_overflow,0.507,heuristic,
+case-02-infeasible-topzone,ai_strategies,infeasible,infeasible,True,9,2,0,8,8,canvas_bounds;generic_overlap,7.354,fixture,
+case-03-story-format,uniform_scale,infeasible,feasible,False,10,1,0,8,8,text_overflow,0.097,heuristic,
+case-03-story-format,heuristic_zones,infeasible,feasible,False,9,2,0,8,8,generic_overlap;text_overflow,0.528,heuristic,
+case-03-story-format,ai_strategies,feasible,feasible,True,11,0,0,7,8,,6.458,fixture,0.7468
+case-04-forbidden-copy,uniform_scale,infeasible,infeasible,True,10,1,0,8,8,text_overflow,0.086,heuristic,
+case-04-forbidden-copy,heuristic_zones,infeasible,infeasible,True,8,3,0,8,8,generic_overlap;locks;text_overflow,0.513,heuristic,
+case-04-forbidden-copy,ai_strategies,infeasible,infeasible,True,10,1,0,8,8,forbidden_copy,7.013,fixture,
+case-05-bottomzone-reflow,uniform_scale,infeasible,feasible,False,9,2,0,8,8,safe_area;text_overflow,0.079,heuristic,
+case-05-bottomzone-reflow,heuristic_zones,infeasible,feasible,False,8,3,0,8,8,generic_overlap;safe_area;text_overflow,0.507,heuristic,
+case-05-bottomzone-reflow,ai_strategies,feasible,feasible,True,11,0,0,7,8,,6.458,fixture,0.7535
