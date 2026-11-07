@@ -66,6 +66,7 @@ declare module "express-document-sdk" {
     get allDescendants(): Readonly<Iterable<BaseNode>>;
   }
   export class FillableNode extends VisualNode {
+    get fill(): Fill | undefined;
     set fill(fill: Fill | undefined);
   }
   export class RectangleNode extends FillableNode {
@@ -76,6 +77,7 @@ declare module "express-document-sdk" {
     get text(): string;
     set text(value: string);
     applyCharacterStyles(styles: CharacterStylesInput, range?: unknown): void;
+    getCharacterStyles(range?: unknown): Array<{ fontSize?: number; color?: Color }>;
   }
   export class StandaloneTextNode extends VisualNode {
     get fullContent(): TextContentModel;

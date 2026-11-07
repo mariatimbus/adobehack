@@ -101,6 +101,23 @@ def intent_route(req: IntentRequest) -> schemas.DesignIntentGraph:
     return infer_intent(req.spec, None)
 
 
+class InferRolesRequest(BaseModel):
+    spec: schemas.DesignSpec
+
+
+@app.post("/api/v1/design/infer-roles")
+def infer_roles_route(req: InferRolesRequest) -> dict:
+    """Best-effort role assignment for an imported document. Heuristic and
+    honestly labeled — the UI shows it as such."""
+    from .services.intent import infer_roles
+    spec = infer_roles(req.spec)
+    return {
+        "spec": spec.model_dump(),
+        "intent": infer_intent(spec, None).model_dump(),
+        "provenance": "rule_inference (deterministic heuristics on the imported page — review before relying on it)",
+    }
+
+
 class InterpretRequest(BaseModel):
     instruction: str = Field(min_length=3)
     design_id: str = "luma-001"
@@ -142,13 +159,21 @@ class CandidatesRequest(BaseModel):
     forbidden_phrases: list[str] | None = None
     min_font_size: dict[str, float] | None = None
     reference_summary: str | None = None
+    # an imported (user) document; when present it replaces the demo fixture
+    spec: schemas.DesignSpec | None = None
+    intent: schemas.DesignIntentGraph | None = None
 
 
 @app.post("/api/v1/candidates", response_model=schemas.CandidatesResponse)
 def candidates_route(req: CandidatesRequest) -> schemas.CandidatesResponse:
     """Full pipeline: interpret (if needed) -> plan -> simulate -> validate -> rank."""
     t_total = time.perf_counter()
-    spec, intent = luma_spec(), luma_intent_graph()
+    if req.spec is not None:
+        spec, intent = req.spec, req.intent
+        if intent is None:
+            intent = infer_intent(spec, None)
+    else:
+        spec, intent = luma_spec(), luma_intent_graph()
     interpreter = get_interpreter(API_KEY)
 
     t_ai = time.perf_counter()
@@ -210,6 +235,8 @@ def candidates_route(req: CandidatesRequest) -> schemas.CandidatesResponse:
 class PreflightRequest(BaseModel):
     candidate: schemas.CandidateResult
     constraints: schemas.RepairConstraints | None = None
+    spec: schemas.DesignSpec | None = None
+    intent: schemas.DesignIntentGraph | None = None
 
 
 @app.post("/api/v1/verify/preflight", response_model=schemas.CandidateValidation)
@@ -218,7 +245,11 @@ def preflight_route(req: PreflightRequest) -> schemas.CandidateValidation:
 
     Idempotent: does not mutate anything. The add-on calls this before apply.
     """
-    spec, intent = luma_spec(), luma_intent_graph()
+    if req.spec is not None:
+        spec = req.spec
+        intent = req.intent if req.intent is not None else infer_intent(spec, None)
+    else:
+        spec, intent = luma_spec(), luma_intent_graph()
     if req.candidate.base_version != spec.version:
         raise HTTPException(status_code=409, detail={
             "error": f"stale candidate: base_version {req.candidate.base_version} != current {spec.version}",

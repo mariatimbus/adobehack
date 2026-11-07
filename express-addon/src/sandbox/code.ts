@@ -438,6 +438,96 @@ async function replaceImageNode(nodeId: string, blob: Blob): Promise<DocumentSta
   return readDocumentState();
 }
 
+function colorToHex(c: Color | undefined): string | null {
+  if (!c) return null;
+  const h = (v: number) => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, "0");
+  return `#${h(c.red)}${h(c.green)}${h(c.blue)}`;
+}
+
+function detectKind(n: VisualNode): string {
+  const anyNode = n as unknown as Record<string, unknown>;
+  if (anyNode.fullContent !== undefined) return "text";
+  if (anyNode.mediaRectangle !== undefined) return "image";
+  return "rectangle";
+}
+
+/**
+ * Read the user's CURRENT page into a DesignSpec: every top-level element
+ * becomes a node with a stable id (persisted in node.addOnData so later
+ * patches bind to the right element). Unreadable properties stay null and
+ * are labeled unsupported — never guessed.
+ */
+async function importCurrentDesign(): Promise<{ state: DocumentState; spec: DesignSpec }> {
+  const parent = editor.context.insertionParent as unknown as {
+    children: Iterable<VisualNode>;
+    width?: number;
+    height?: number;
+  };
+  const nodes: Array<{
+    id: string; type: "rectangle" | "text" | "image"; role: string;
+    bbox: [number, number, number, number];
+    fill?: string | null; text?: string | null; font_size?: number | null;
+    expendable: boolean;
+  }> = [];
+  let i = 0;
+  for (const child of parent.children as Iterable<VisualNode>) {
+    i += 1;
+    let id = child.addOnData.getItem(NODE_ID_KEY);
+    if (!id) {
+      id = `node_${i}`;
+      child.addOnData.setItem(NODE_ID_KEY, id);
+    }
+    const kind = detectKind(child);
+    recordKind(child, kind);
+    const b = child.boundsInParent;
+    let text: string | null = null;
+    let fontSize: number | null = null;
+    if (kind === "text") {
+      try {
+        text = (child as unknown as StandaloneTextNode).fullContent.text;
+      } catch {
+        text = null; // unreadable -> honest null
+      }
+      try {
+        const model = (child as unknown as StandaloneTextNode).fullContent as unknown as {
+          getCharacterStyles?: () => Array<{ fontSize?: number }>;
+        };
+        const ranges = model.getCharacterStyles?.() ?? [];
+        fontSize = ranges.length && ranges[0].fontSize ? ranges[0].fontSize : null;
+      } catch {
+        fontSize = null;
+      }
+    }
+    let fill: string | null = null;
+    try {
+      const f = (child as unknown as { fill?: { color?: Color } }).fill;
+      fill = colorToHex(f?.color);
+    } catch {
+      fill = null;
+    }
+    nodes.push({
+      id,
+      type: kind === "text" ? "text" : kind === "image" ? "image" : "rectangle",
+      role: "decoration", // backend re-infers roles; neutral default
+      bbox: [b.x, b.y, b.width, b.height],
+      fill,
+      text,
+      font_size: fontSize,
+      expendable: false,
+    });
+  }
+  const spec = {
+    design_id: `imported-${Date.now()}`,
+    version: 1,
+    canvas: { width: parent.width ?? 1080, height: parent.height ?? 1080 },
+    nodes,
+  } as unknown as DesignSpec;
+  const root = pageRoot();
+  root.addOnData.setItem(DESIGN_ID_KEY, spec.design_id);
+  root.addOnData.setItem(VERSION_KEY, String(spec.version));
+  return { state: readDocumentState(), spec };
+}
+
 async function verifyAppliedPatch(candidate: CandidateResult): Promise<PostApplyReport> {
   const before = readDocumentState();
   return verifyAgainstPlan(candidate, before, before, 0);
@@ -448,6 +538,7 @@ async function verifyAppliedPatch(candidate: CandidateResult): Promise<PostApply
 addOnSandboxSdk.instance.runtime.exposeApi({
   applyDesign,
   applyRepairPatch,
+  importCurrentDesign,
   readDocumentState,
   replaceImageNode,
   verifyAppliedPatch,

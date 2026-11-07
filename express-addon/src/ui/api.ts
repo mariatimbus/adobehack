@@ -53,6 +53,8 @@ export async function fetchCandidates(
     forbiddenPhrases?: string[];
     minFontSize?: Record<string, number>;
     referenceSummary?: string;
+    spec?: DesignSpec;
+    intent?: unknown;
   } = {}
 ): Promise<CandidatesResponse> {
   return post<CandidatesResponse>("/api/v1/candidates", {
@@ -62,7 +64,17 @@ export async function fetchCandidates(
     forbidden_phrases: extras.forbiddenPhrases,
     min_font_size: extras.minFontSize,
     reference_summary: extras.referenceSummary,
+    spec: extras.spec,
+    intent: extras.intent,
   });
+}
+
+export async function inferRoles(spec: DesignSpec): Promise<{
+  spec: DesignSpec;
+  intent: unknown;
+  provenance: string;
+}> {
+  return post("/api/v1/design/infer-roles", { spec });
 }
 
 export async function preflight(candidate: unknown): Promise<unknown> {

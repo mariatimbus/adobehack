@@ -62,7 +62,8 @@ def infer_intent(spec: DesignSpec, constraints=None) -> DesignIntentGraph:
 
     # visual group: the copy stack (all text blocks except brand), if clustered
     copy_nodes = [n for n in nodes if n.role in TEXT_ROLES and n.role != NodeRole.brand and n.id != focal]
-    cta_nodes = [n.id for n in nodes if n.role in (NodeRole.cta_text, NodeRole.cta_background)]
+    cta_nodes = [n.id for n in nodes if n.role == NodeRole.cta_text] + \
+        [n.id for n in nodes if n.role == NodeRole.cta_background]
     group = [n.id for n in copy_nodes]
     if len(group) >= 2:
         rel_nodes = group + [i for i in cta_nodes if i not in group]
@@ -131,3 +132,73 @@ def resolve_intent(spec: DesignSpec, fixture_graph: DesignIntentGraph | None,
     if fixture_graph is not None and fixture_graph.design_id == spec.design_id:
         return fixture_graph
     return infer_intent(spec, constraints)
+
+
+def infer_roles(spec: DesignSpec) -> DesignSpec:
+    """Best-effort role assignment for an imported, unlabeled document.
+
+    Deterministic heuristics, labeled honest: largest full-canvas rectangle ->
+    background; largest image -> product/hero; largest-area text -> headline;
+    top-most small text -> brand; text overlapping a filled rectangle ->
+    cta_text (the rectangle becomes cta_background); remaining text -> subhead.
+    """
+    import copy as _copy
+
+    out = _copy.deepcopy(spec)
+    nodes = [n for n in out.nodes if n.rect.w > 0 and n.rect.h > 0]
+    if not nodes:
+        return out
+    canvas_area = out.canvas.width * out.canvas.height
+
+    for n in out.nodes:
+        if n.role.value == "background" and n.rect.area >= canvas_area * 0.9:
+            continue  # already labeled and plausible
+
+    rects = [n for n in nodes if n.type.value == "rectangle"]
+    images = [n for n in nodes if n.type.value == "image"]
+    texts = [n for n in nodes if n.type.value == "text"]
+
+    # background: rectangle covering ~full canvas
+    for r in rects:
+        if r.rect.area >= canvas_area * 0.9 and r.role.value != "background":
+            r.role = NodeRole.background
+
+    # hero: largest image
+    if images:
+        hero = max(images, key=lambda n: n.rect.area)
+        if hero.role.value != "product":
+            hero.role = NodeRole.product
+
+    # brand: top-most small text in the top 25% of the canvas
+    top_texts = [t for t in texts if t.rect.cy < out.canvas.height * 0.25]
+    if top_texts:
+        brand = min(top_texts, key=lambda t: (t.rect.top, -t.rect.area))
+        if brand.role.value not in ("brand", "headline"):
+            brand.role = NodeRole.brand
+
+    # cta: text sitting on a filled rectangle ( containment or heavy overlap )
+    filled = [r for r in rects if r.fill and r.role.value != "background"]
+    for t in texts:
+        if t.role.value in ("brand",):
+            continue
+        for r in filled:
+            inter = t.rect.intersection(r.rect)
+            if t.rect.area > 0 and inter.area / t.rect.area > 0.6:
+                t.role = NodeRole.cta_text
+                if r.role.value != "cta_background":
+                    r.role = NodeRole.cta_background
+                break
+
+    # headline: largest remaining text by (font_size * width)
+    remaining = [t for t in texts if t.role.value not in ("brand", "cta_text")]
+    if remaining:
+        head = max(remaining, key=lambda t: (t.font_size or 12) * t.rect.w)
+        if head.role.value != "headline":
+            head.role = NodeRole.headline
+
+    for t in texts:
+        if t.role.value == "text" or t.role.value not in {
+                "brand", "headline", "cta_text", "subhead"}:
+            t.role = NodeRole.subhead
+
+    return out

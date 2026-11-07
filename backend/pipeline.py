@@ -56,11 +56,17 @@ def build_candidates(spec: DesignSpec, intent: DesignIntentGraph | None,
     if constraints and constraints.format_target:
         base = reposition_for_format(spec, constraints.format_target)
 
-    intent = resolve_intent(base, intent, constraints)
+    # Imported/user documents often violate the safe margins. Normalize a
+    # PLANNING copy first (never the comparison base, so locks and metrics
+    # stay measured against the real document); strategies then compute
+    # geometry against margin-compliant positions.
+    planning = _margin_normalize(base, constraints, config)
+
+    intent = resolve_intent(planning, intent, constraints)
     locked = _locked_ids(constraints)
     candidates: list[CandidateResult] = []
 
-    for strat in strategist.generate_strategies(base, intent, constraints, config, provider_mode):
+    for strat in strategist.generate_strategies(planning, intent, constraints, config, provider_mode):
         ops: list[Operation] = list(strat["operations"])
         issues = list(strat["issues"])
         for o in ops:
@@ -70,9 +76,9 @@ def build_candidates(spec: DesignSpec, intent: DesignIntentGraph | None,
                 issues.append(f"invalid operation {o}: {exc}")
 
         # drop individually invalid ops but keep the candidate contract complete
-        valid_ops = [o for o in ops if o.node_id in {n.id for n in base.nodes}]
+        valid_ops = [o for o in ops if o.node_id in {n.id for n in planning.nodes}]
         try:
-            resulting = apply_with_format(base, valid_ops, constraints)
+            resulting = apply_with_format(planning, valid_ops, constraints)
         except Exception as exc:
             resulting = base
             issues.append(f"simulation failed: {exc}")
@@ -83,10 +89,11 @@ def build_candidates(spec: DesignSpec, intent: DesignIntentGraph | None,
                                                        constraints, config)
         if overflow_fixed:
             try:
-                resulting = apply_with_format(base, valid_ops + repair_ops, constraints)
+                resulting = apply_with_format(planning, valid_ops + repair_ops, constraints)
             except Exception as exc:
                 issues.append(f"overflow repair failed: {exc}")
             valid_ops = valid_ops + repair_ops
+
 
         validation = validator.validate(resulting, base, constraints, intent,
                                         safe_margin_px=config.safe_margin_px,
@@ -128,7 +135,9 @@ def _overflow_repairs(base: DesignSpec, resulting: DesignSpec,
     """Font-reduction ops for any measured text overflow in the simulation.
 
     Only nodes whose size is not locked are touched; floors come from the
-    documented role/node min-font rules. Returns (ops, any_fix_attempted).
+    documented role/node min-font rules. If the floor itself still overflows
+    and the node's size is free, the box height grows to fit (position kept).
+    Returns (ops, any_fix_attempted).
     """
     from .services import textmetrics
     floors = dict(config.role_font_floors)
@@ -146,16 +155,48 @@ def _overflow_repairs(base: DesignSpec, resulting: DesignSpec,
         fits_now, need, _ = textmetrics.fits(n.text, n.font_size, r.w, r.h)
         if fits_now:
             continue
-        if "size" in _locked_kinds(constraints, n.id):
-            continue  # locked: validator will report the overflow honestly
-        floor = floors.get(n.id) or floors.get(n.role.value) or 8.0
-        size = n.font_size - 1.0
-        while size > floor:
-            if textmetrics.fits(n.text, size, r.w, r.h)[0]:
-                break
-            size -= 1.0
-        repairs.append(Operation(op="set_font_size", node_id=n.id, value=size))
+        locked = _locked_kinds(constraints, n.id)
+        if "size" not in locked:
+            floor = floors.get(n.id) or floors.get(n.role.value) or 8.0
+            size = n.font_size - 1.0
+            while size > floor:
+                if textmetrics.fits(n.text, size, r.w, r.h)[0]:
+                    break
+                size -= 1.0
+            repairs.append(Operation(op="set_font_size", node_id=n.id, value=size))
+            # re-check with the new size; if it still overflows, grow the box
+            if not textmetrics.fits(n.text, size, r.w, r.h)[0] and "position" not in locked:
+                need_h = textmetrics.wrapped_height(n.text, size, r.w) + 16.0
+                repairs.append(Operation(op="set_bbox", node_id=n.id,
+                                         value=[r.x, r.y, r.w, need_h]))
     return repairs, bool(repairs)
+
+
+def _margin_normalize(base: DesignSpec, constraints: RepairConstraints | None,
+                      config: StrategyConfig) -> DesignSpec:
+    """Deep-copy `base` with unlocked, non-background nodes nudged into the
+    safe margins. Locked nodes and hidden nodes are untouched (the validator
+    reports them honestly against the real base)."""
+    from .services.layout import clone_spec
+    out = clone_spec(base)
+    m = config.safe_margin_px
+    c = out.canvas
+    for n in out.nodes:
+        if n.role == NodeRole.background or n.rect.w <= 0 or n.rect.h <= 0:
+            continue
+        if "position" in _locked_kinds(constraints, n.id):
+            continue
+        r = n.rect
+        dx = dy = 0.0
+        if r.left < m - 1e-6 and r.left > 1e-6:
+            dx = m - r.left
+        if r.right > c.width - m + 1e-6 and r.right < c.width - 1e-6:
+            dx = (c.width - m - r.w) - r.x
+        if r.bottom > c.height - m + 1e-6 and r.bottom < c.height - 1e-6:
+            dy = (c.height - m - r.h) - r.y
+        if dx or dy:
+            n.bbox = [r.x + dx, r.y + dy, r.w, r.h]
+    return out
 
 
 def select_best(candidates: list[CandidateResult]) -> CandidateResult | None:

@@ -14,6 +14,7 @@ import {
   backendBase,
   fetchCandidates,
   fetchDemoDesign,
+  inferRoles,
   parseBrandGuidelines,
   type BrandGuidelinesResult,
   type StyleAnalysis,
@@ -24,6 +25,7 @@ type Stage = "load" | "intent" | "constraint" | "compare" | "apply" | "verify";
 interface SandboxApi {
   applyDesign: (spec: DesignSpec, heroBlob?: Blob) => Promise<DocumentState>;
   applyRepairPatch: (candidate: CandidateResult) => Promise<PostApplyReport>;
+  importCurrentDesign: () => Promise<{ state: DocumentState; spec: DesignSpec }>;
   readDocumentState: () => Promise<DocumentState>;
   replaceImageNode: (nodeId: string, blob: Blob) => Promise<DocumentState>;
   verifyAppliedPatch: (candidate: CandidateResult) => Promise<PostApplyReport>;
@@ -112,6 +114,12 @@ function makeHarnessSandbox(getSpec: () => DesignSpec | null, setSpec: (s: Desig
       setSpec(patched);
       return stateOf(patched);
     },
+    async importCurrentDesign() {
+      // harness: no real document — import whatever the harness currently holds
+      const spec = getSpec();
+      if (!spec) throw new Error("harness: load the demo campaign first (no real page to import)");
+      return { state: stateOf(spec), spec };
+    },
     async verifyAppliedPatch(candidate) {
       return this.applyRepairPatch(candidate);
     },
@@ -152,6 +160,7 @@ export default function App() {
   const [styleRefs, setStyleRefs] = useState<StyleAnalysis[]>([]);
   const [refSummary, setRefSummary] = useState("");
   const [assetError, setAssetError] = useState<string | null>(null);
+  const [importNote, setImportNote] = useState<string | null>(null);
 
   const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const harness = urlParams.get("harness") === "1";
@@ -213,6 +222,29 @@ export default function App() {
     }
   }
 
+  async function importMyDesign() {
+    setBusy(true);
+    setError(null);
+    try {
+      const { state, spec } = await sandbox!.importCurrentDesign();
+      if (spec.nodes.length === 0) {
+        setError("The current page has no top-level elements to import.");
+        return;
+      }
+      const inferred = await inferRoles(spec);
+      specRef.current = inferred.spec as DesignSpec;
+      setSpec(inferred.spec as DesignSpec);
+      setIntent(inferred.intent as DesignIntentGraph);
+      setImportNote(`Imported ${spec.nodes.length} element(s) from your page. ${inferred.provenance}`);
+      setDocState(state);
+      setStage("intent");
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function runCandidates() {
     setBusy(true);
     setError(null);
@@ -221,6 +253,8 @@ export default function App() {
         forbiddenPhrases: brandGuide?.forbidden_phrases,
         minFontSize: brandGuide?.min_font_size,
         referenceSummary: refSummary || undefined,
+        spec: spec ?? undefined,
+        intent: intent ?? undefined,
       });
       setResponse(res);
       setPicked(res.selected ? res.selected.candidate_id : null);
@@ -314,17 +348,23 @@ export default function App() {
 
       {stage === "load" && (
         <section>
-          <h2>1 · Load the LUMA SKIN campaign</h2>
+          <h2>1 · Choose your design</h2>
           <p className="hint">
-            Creates the known 8-node design as native, independently editable Express elements
-            (background, decoration, brand, headline, subhead, hero image, CTA pill, CTA text).
+            <b>Import my current page</b> reads the elements already on your canvas (texts, images,
+            shapes) and adapts <b>your</b> design. Or load the fictional LUMA SKIN demo campaign
+            to see the full reference flow.
           </p>
-          <button onClick={loadDesign} disabled={!sandbox || busy}>
-            {busy ? "Loading…" : "Load campaign into Express"}
-          </button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button onClick={importMyDesign} disabled={!sandbox || busy}>
+              {busy ? "Working…" : "Import my current page"}
+            </button>
+            <button className="secondary" onClick={loadDesign} disabled={!sandbox || busy}>
+              Load demo campaign (LUMA SKIN)
+            </button>
+          </div>
           {docState && (
             <p className="telemetry">
-              Loaded: {docState.node_count} native nodes · version {docState.version} · unsupported readback:{" "}
+              {docState.node_count} native nodes · version {docState.version} · unsupported readback:{" "}
               {docState.unsupported_properties.join(", ")}
             </p>
           )}
@@ -334,6 +374,7 @@ export default function App() {
       {stage === "intent" && intent && spec && (
         <section className="intent">
           <h2>2 · Semantic design intent</h2>
+          {importNote && <div className="banner">{importNote}</div>}
           <p>
             Focal element: <b>{intent.focal_element}</b>
             <span className="badge focal">focal</span>
@@ -349,6 +390,19 @@ export default function App() {
             ))}
           </ul>
           <p className="telemetry">provenance: {intent.provenance.mode} — graph drives strategy generation.</p>
+
+          {importNote && (
+            <div className="analysis" style={{ marginBottom: 8 }}>
+              <b>Detected elements:</b>
+              {spec.nodes.map((n) => (
+                <div key={n.id}>
+                  <code>{n.id}</code> → <b>{n.role}</b>
+                  {n.text ? ` · “${n.text.slice(0, 40)}${n.text.length > 40 ? "…" : ""}”` : ""}
+                  {n.font_size ? ` · ${n.font_size}px` : ""}
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="bringyourown">
             <h2>Bring your own</h2>
