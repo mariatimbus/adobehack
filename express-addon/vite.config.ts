@@ -5,6 +5,7 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   root: "src/ui",
+  base: "./", // relative asset paths — the Adobe CLI serves the panel under a prefix
   publicDir: "../../assets-public",
   build: {
     outDir: "../../dist/ui",
