@@ -182,13 +182,25 @@ export default function App() {
     }
     (async () => {
       try {
-        logInit(`sdk script: ${typeof window.addOnUISdk === "object" ? "loaded" : "NOT LOADED"}`);
-        if (!window.addOnUISdk) {
+        // The Add-on UI SDK is an ES MODULE (default export), not a window
+        // global — load it with a dynamic import (@vite-ignore keeps it
+        // runtime-resolved), falling back to a global if Adobe ever provides one.
+        let sdk: NonNullable<Window["addOnUISdk"]> | undefined = window.addOnUISdk;
+        if (!sdk) {
+          logInit("sdk global: absent — loading sdk.js as ES module…");
+          const mod: unknown = await import(
+            /* @vite-ignore */ "https://new.express.adobe.com/static/add-on-sdk/sdk.js"
+          );
+          const m = mod as { default?: Window["addOnUISdk"] } & Window["addOnUISdk"];
+          sdk = m?.default ?? m;
+        }
+        logInit(`sdk: ${sdk ? "loaded (module)" : "NOT LOADED"}`);
+        if (!sdk) {
           throw new Error("add-on-sdk sdk.js did not load (script blocked or missing)");
         }
-        await window.addOnUISdk.ready;
+        await sdk.ready;
         logInit("ready: resolved");
-        const inst = window.addOnUISdk.instance;
+        const inst = sdk.instance;
         logInit(`instance: ${typeof inst} · runtime: ${typeof inst?.runtime}`);
         const proxyPromise = inst.runtime.apiProxy<SandboxApi>("documentSandbox");
         const timeout = new Promise<never>((_, reject) =>

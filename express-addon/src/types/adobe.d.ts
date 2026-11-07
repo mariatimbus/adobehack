@@ -127,7 +127,7 @@ declare module "add-on-sdk-document-sandbox" {
   export default sandboxSdk;
 }
 
-/** Global provided by https://new.express.adobe.com/static/add-on-sdk/sdk.js */
+/** Global shape of the Add-on UI SDK (loaded as an ES module, not a window global) */
 interface AddOnUISdkGlobal {
   ready: Promise<void>;
   instance: {
@@ -139,6 +139,12 @@ interface AddOnUISdkGlobal {
   app: { document: { promptForFile: (t: string) => Promise<File> } };
   runtime?: unknown; // legacy shape — do not use
 }
+
+declare module "https://new.express.adobe.com/static/add-on-sdk/sdk.js" {
+  const sdk: AddOnUISdkGlobal;
+  export default sdk;
+}
+
 interface Window {
   addOnUISdk?: AddOnUISdkGlobal;
 }
