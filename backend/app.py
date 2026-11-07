@@ -14,7 +14,7 @@ import time
 from collections import deque
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -138,6 +138,10 @@ class CandidatesRequest(BaseModel):
     design_id: str = "luma-001"
     headline_text: str | None = None
     current_texts: dict[str, str] | None = None
+    # bring-your-own extras (from uploaded brand guidelines / references)
+    forbidden_phrases: list[str] | None = None
+    min_font_size: dict[str, float] | None = None
+    reference_summary: str | None = None
 
 
 @app.post("/api/v1/candidates", response_model=schemas.CandidatesResponse)
@@ -164,6 +168,16 @@ def candidates_route(req: CandidatesRequest) -> schemas.CandidatesResponse:
     else:
         raise HTTPException(status_code=422, detail={"error": "provide instruction or constraints",
                                                      "code": "EMPTY_REQUEST"})
+
+    # merge bring-your-own extras (uploaded brand guidelines), without
+    # overwriting anything the instruction itself produced
+    if req.forbidden_phrases:
+        existing = {p.lower() for p in constraints.forbidden_phrases}
+        constraints.forbidden_phrases += [
+            p for p in req.forbidden_phrases if p.lower() not in existing]
+    if req.min_font_size:
+        for k, v in req.min_font_size.items():
+            constraints.min_font_size.setdefault(k, v)
 
     candidates, geometry_ms = build_candidates(spec, intent, constraints, _config(),
                                                provider_mode=interpreter.provider_mode)
@@ -226,6 +240,40 @@ def rules() -> list[dict]:
                         "doc": doc.splitlines()[0] if doc else "documented in validator source",
                         "statuses": "pass | fail | unknown"})
     return catalog
+
+
+# ---------------------------------------------------------------------------
+# Bring-your-own assets (user-provided)
+# ---------------------------------------------------------------------------
+
+
+class BrandGuidelinesRequest(BaseModel):
+    text: str = Field(min_length=10)
+    filename: str | None = None
+
+
+@app.post("/api/v1/brand-guidelines")
+def brand_guidelines_route(req: BrandGuidelinesRequest) -> dict:
+    """Deterministic parser for uploaded brand-guideline text files.
+    Labeled rule_based_extraction — not AI."""
+    from .services.userassets import parse_brand_guidelines
+    return parse_brand_guidelines(req.text).to_dict()
+
+
+@app.post("/api/v1/style-references")
+async def style_references_route(files: list[UploadFile] = File(...)) -> dict:
+    """Deterministic image analysis for inspiration uploads (e.g. a Pinterest
+    board export). Labeled heuristic_vision — not live multimodal AI."""
+    from .services.userassets import analyze_style_reference, summarize_references
+    analyses = []
+    errors = []
+    for f in files:
+        try:
+            data = await f.read()
+            analyses.append(analyze_style_reference(data))
+        except Exception as exc:
+            errors.append({"filename": f.filename, "error": str(exc)})
+    return {"analyses": analyses, "summary": summarize_references(analyses), "errors": errors}
 
 
 @app.get("/api/v1/telemetry")

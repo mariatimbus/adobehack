@@ -60,6 +60,7 @@ declare module "express-document-sdk" {
     get translation(): Readonly<Point>;
     set translation(value: Point);
     setPositionInParent(parentPoint: Point, localRegistrationPoint: Point): void;
+    removeFromParent(): void;
     get opacity(): number;
     set opacity(value: number);
     get allDescendants(): Readonly<Iterable<BaseNode>>;

@@ -9,7 +9,15 @@ import type {
 } from "../shared/contracts";
 import { candidateCards } from "../shared/svgPreview";
 import { applyOperations, diffPlannedObserved } from "../shared/opApplier";
-import { backendBase, fetchCandidates, fetchDemoDesign } from "./api";
+import {
+  analyzeStyleReferences,
+  backendBase,
+  fetchCandidates,
+  fetchDemoDesign,
+  parseBrandGuidelines,
+  type BrandGuidelinesResult,
+  type StyleAnalysis,
+} from "./api";
 
 type Stage = "load" | "intent" | "constraint" | "compare" | "apply" | "verify";
 
@@ -17,6 +25,7 @@ interface SandboxApi {
   applyDesign: (spec: DesignSpec, heroBlob?: Blob) => Promise<DocumentState>;
   applyRepairPatch: (candidate: CandidateResult) => Promise<PostApplyReport>;
   readDocumentState: () => Promise<DocumentState>;
+  replaceImageNode: (nodeId: string, blob: Blob) => Promise<DocumentState>;
   verifyAppliedPatch: (candidate: CandidateResult) => Promise<PostApplyReport>;
 }
 
@@ -92,6 +101,17 @@ function makeHarnessSandbox(getSpec: () => DesignSpec | null, setSpec: (s: Desig
       if (!spec) throw new Error("no design loaded");
       return stateOf(spec);
     },
+    async replaceImageNode(nodeId) {
+      const spec = getSpec();
+      if (!spec) throw new Error("no design loaded");
+      if (!spec.nodes.some((n) => n.id === nodeId)) throw new Error(`node '${nodeId}' not found`);
+      const patched = JSON.parse(JSON.stringify(spec));
+      const node = patched.nodes.find((n: { id: string }) => n.id === nodeId);
+      node.type = "image";
+      node.asset_id = "user-uploaded";
+      setSpec(patched);
+      return stateOf(patched);
+    },
     async verifyAppliedPatch(candidate) {
       return this.applyRepairPatch(candidate);
     },
@@ -125,6 +145,13 @@ export default function App() {
   const [report, setReport] = useState<PostApplyReport | null>(null);
   const [busy, setBusy] = useState(false);
   const specRef = React.useRef<DesignSpec | null>(null);
+
+  // bring-your-own state
+  const [heroCustom, setHeroCustom] = useState(false);
+  const [brandGuide, setBrandGuide] = useState<BrandGuidelinesResult | null>(null);
+  const [styleRefs, setStyleRefs] = useState<StyleAnalysis[]>([]);
+  const [refSummary, setRefSummary] = useState("");
+  const [assetError, setAssetError] = useState<string | null>(null);
 
   const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const harness = urlParams.get("harness") === "1";
@@ -189,7 +216,11 @@ export default function App() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetchCandidates(instruction, headlineText || null, currentTexts);
+      const res = await fetchCandidates(instruction, headlineText || null, currentTexts, {
+        forbiddenPhrases: brandGuide?.forbidden_phrases,
+        minFontSize: brandGuide?.min_font_size,
+        referenceSummary: refSummary || undefined,
+      });
       setResponse(res);
       setPicked(res.selected ? res.selected.candidate_id : null);
       setStage("compare");
@@ -217,6 +248,37 @@ export default function App() {
       setError(String(e));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function onHeroFile(file: File) {
+    setAssetError(null);
+    try {
+      await sandbox!.replaceImageNode("hero", file);
+      setHeroCustom(true);
+    } catch (e) {
+      setAssetError(String(e));
+    }
+  }
+
+  async function onGuidelinesFile(file: File) {
+    setAssetError(null);
+    try {
+      const text = await file.text();
+      setBrandGuide(await parseBrandGuidelines(text, file.name));
+    } catch (e) {
+      setAssetError(String(e));
+    }
+  }
+
+  async function onReferenceFiles(files: FileList) {
+    setAssetError(null);
+    try {
+      const res = await analyzeStyleReferences(Array.from(files));
+      setStyleRefs(res.analyses);
+      setRefSummary(res.summary);
+    } catch (e) {
+      setAssetError(String(e));
     }
   }
 
@@ -286,6 +348,73 @@ export default function App() {
             ))}
           </ul>
           <p className="telemetry">provenance: {intent.provenance.mode} — graph drives strategy generation.</p>
+
+          <div className="bringyourown">
+            <h2>Bring your own</h2>
+            <label className="fileline">
+              <span>1 · Your poster / packshot (replaces the hero image node, stays native):</span>
+              <input
+                type="file"
+                accept="image/png,image/jpeg"
+                onChange={(e) => e.target.files?.[0] && onHeroFile(e.target.files[0])}
+              />
+              {heroCustom && <span className="badge focal">hero replaced with your image</span>}
+            </label>
+            <label className="fileline">
+              <span>2 · Brand guidelines (.txt/.md — palette, fonts, locks, forbidden phrases):</span>
+              <input
+                type="file"
+                accept=".txt,.md"
+                onChange={(e) => e.target.files?.[0] && onGuidelinesFile(e.target.files[0])}
+              />
+            </label>
+            {brandGuide && (
+              <div className="analysis">
+                <div>
+                  palette:{" "}
+                  {brandGuide.palette.map((c) => (
+                    <span key={c} className="swatch" style={{ background: c }} title={c} />
+                  ))}
+                  {brandGuide.palette.length === 0 && <em>none found</em>}
+                </div>
+                <div>fonts: {brandGuide.fonts.join(", ") || "none found"}</div>
+                <div>min font: {JSON.stringify(brandGuide.min_font_size) || "none"}</div>
+                <div>locked roles: {brandGuide.locked_roles.join(", ") || "none"}</div>
+                <div>forbidden: {brandGuide.forbidden_phrases.join(" | ") || "none"}</div>
+                {brandGuide.warnings.map((w, i) => (
+                  <div key={i} className="issue">⚠ {w}</div>
+                ))}
+                <div className="telemetry">{brandGuide.notes[0]} · provenance: {brandGuide.provenance}</div>
+              </div>
+            )}
+            <label className="fileline">
+              <span>3 · Inspiration images (e.g. a Pinterest board export, multi-select):</span>
+              <input
+                type="file"
+                accept="image/png,image/jpeg"
+                multiple
+                onChange={(e) => e.target.files?.length && onReferenceFiles(e.target.files)}
+              />
+            </label>
+            {styleRefs.length > 0 && (
+              <div className="analysis">
+                {styleRefs.map((a, i) => (
+                  <div key={i} className="refrow">
+                    ref {i + 1}: {a.orientation} · mood: {a.mood}
+                    <div>
+                      {a.dominant_colors.map((c) => (
+                        <span key={c.hex} className="swatch" style={{ background: c.hex }} title={`${c.hex} ${(c.share * 100).toFixed(0)}%`} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                <div className="telemetry">{refSummary}</div>
+                <div className="telemetry">{styleRefs[0].provenance}</div>
+              </div>
+            )}
+            {assetError && <div className="issue blocking">{assetError}</div>}
+          </div>
+
           <button onClick={() => setStage("constraint")}>Enter modification request</button>
         </section>
       )}

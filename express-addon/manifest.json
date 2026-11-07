@@ -4,18 +4,14 @@
   "version": "1.0.0",
   "manifestVersion": 2,
   "requirements": {
-    "apps": [{ "name": "Express", "version": "1.0" }]
+    "apps": [{ "name": "Express", "apiVersion": 1, "supportedDeviceClass": ["desktop"] }]
   },
   "entryPoints": [
     {
       "type": "panel",
       "id": "panel",
-      "main": "ui/index.html"
-    },
-    {
-      "type": "documentSandbox",
-      "id": "sandbox",
-      "main": "sandbox/code.js"
+      "main": "ui/index.html",
+      "script": "sandbox/code.js"
     }
   ]
 }

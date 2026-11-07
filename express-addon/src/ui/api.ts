@@ -48,15 +48,63 @@ export async function interpretInstruction(
 export async function fetchCandidates(
   instruction: string,
   headlineText: string | null,
-  currentTexts: Record<string, string>
+  currentTexts: Record<string, string>,
+  extras: {
+    forbiddenPhrases?: string[];
+    minFontSize?: Record<string, number>;
+    referenceSummary?: string;
+  } = {}
 ): Promise<CandidatesResponse> {
   return post<CandidatesResponse>("/api/v1/candidates", {
     instruction,
     headline_text: headlineText,
     current_texts: currentTexts,
+    forbidden_phrases: extras.forbiddenPhrases,
+    min_font_size: extras.minFontSize,
+    reference_summary: extras.referenceSummary,
   });
 }
 
 export async function preflight(candidate: unknown): Promise<unknown> {
   return post("/api/v1/verify/preflight", { candidate });
+}
+
+export interface BrandGuidelinesResult {
+  palette: string[];
+  fonts: string[];
+  min_font_size: Record<string, number>;
+  locked_roles: string[];
+  forbidden_phrases: string[];
+  notes: string[];
+  warnings: string[];
+  provenance: string;
+}
+
+export async function parseBrandGuidelines(text: string, filename?: string): Promise<BrandGuidelinesResult> {
+  return post<BrandGuidelinesResult>("/api/v1/brand-guidelines", { text, filename });
+}
+
+export interface StyleAnalysis {
+  width: number;
+  height: number;
+  orientation: string;
+  dominant_colors: Array<{ hex: string; share: number }>;
+  mean_luminance: number;
+  mean_saturation: number;
+  warm_pixel_share: number;
+  edge_density: number;
+  mood: string;
+  provenance: string;
+}
+
+export async function analyzeStyleReferences(files: File[]): Promise<{
+  analyses: StyleAnalysis[];
+  summary: string;
+  errors: Array<{ filename: string; error: string }>;
+}> {
+  const form = new FormData();
+  files.forEach((f) => form.append("files", f));
+  const res = await fetch(`${backendBase()}/api/v1/style-references`, { method: "POST", body: form });
+  if (!res.ok) throw new Error(`style-references failed: ${res.status}`);
+  return await res.json();
 }

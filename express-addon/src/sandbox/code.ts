@@ -412,6 +412,32 @@ function verifyAgainstPlan(
   };
 }
 
+async function replaceImageNode(nodeId: string, blob: Blob): Promise<DocumentState> {
+  const tracked = collectTracked();
+  const t = tracked.get(nodeId);
+  if (!t) throw new Error(`node '${nodeId}' not found in document`);
+  if (t.kind === "image_placeholder") t.kind = "image";
+  if (t.kind !== "image" && t.kind !== "rectangle") {
+    throw new Error(`node '${nodeId}' is not replaceable with an image (kind=${t.kind})`);
+  }
+  const rect = t.node as unknown as { width?: number; height?: number };
+  const w = typeof rect.width === "number" ? rect.width : 420;
+  const h = typeof rect.height === "number" ? rect.height : 620;
+  const pos = { ...t.node.translation };
+  const bitmap = await editor.loadBitmapImage(blob);
+  const image: MediaContainerNode = editor.createImageContainer(bitmap, {
+    initialSize: { width: w, height: h },
+  });
+  editor.context.insertionParent.children.append(image as unknown as never);
+  image.setPositionInParent(pos, { x: 0, y: 0 });
+  image.addOnData.setItem(NODE_ID_KEY, nodeId);
+  recordKind(image as unknown as VisualNode, "image");
+  // remove the old node so node count is preserved (no duplicates)
+  const old = t.node as unknown as { removeFromParent?: () => void };
+  if (typeof old.removeFromParent === "function") old.removeFromParent();
+  return readDocumentState();
+}
+
 async function verifyAppliedPatch(candidate: CandidateResult): Promise<PostApplyReport> {
   const before = readDocumentState();
   return verifyAgainstPlan(candidate, before, before, 0);
@@ -423,5 +449,6 @@ addOnSandboxSdk.runtime.exposeApi({
   applyDesign,
   applyRepairPatch,
   readDocumentState,
+  replaceImageNode,
   verifyAppliedPatch,
 });
