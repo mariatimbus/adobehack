@@ -249,7 +249,7 @@ def check_contrast(ctx: RuleContext, base: DesignSpec) -> RuleResult:
         imgs = [u for u in ctx.spec.nodes
                 if u.id != n.id and u.type.value == "image" and u.rect.w > 0
                 and u.rect.left <= r.cx <= u.rect.right and u.rect.top <= r.cy <= u.rect.bottom]
-        solid = max(under, key=lambda u: u.rect.area) if under else None
+        solid = min(under, key=lambda u: u.rect.area) if under else None
         if imgs and (not solid or solid.rect.area > min(i.rect.area for i in imgs)):
             unknowns.append(f"{n.id} (over image)")
             continue

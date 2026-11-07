@@ -27,8 +27,8 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return (await res.json()) as T;
 }
 
-export async function fetchDemoDesign(): Promise<{ spec: DesignSpec; intent: unknown; rules: Record<string, unknown> }> {
-  const res = await fetch(`${backendBase()}/api/v1/design/demo`);
+export async function fetchDemoDesign(demo: "luma" | "alphaz" = "alphaz"): Promise<{ spec: DesignSpec; intent: unknown; rules: Record<string, unknown> }> {
+  const res = await fetch(`${backendBase()}/api/v1/design/demo?demo=${demo}`);
   if (!res.ok) throw new Error(`design demo failed: ${res.status}`);
   return await res.json();
 }

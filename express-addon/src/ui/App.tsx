@@ -197,23 +197,29 @@ export default function App() {
     return out;
   }, [spec]);
 
-  async function loadDesign() {
+  async function loadDesign(demo: "luma" | "alphaz" = "alphaz") {
     setBusy(true);
     setError(null);
     try {
-      const demo = await fetchDemoDesign();
+      const fetched = await fetchDemoDesign(demo);
       let heroBlob: Blob | undefined;
       try {
-        const asset = await fetch("./serum-packshot.png");
+        const asset = await fetch(demo === "alphaz" ? "./alphaz-hero.png" : "./serum-packshot.png");
         if (asset.ok) heroBlob = await asset.blob();
       } catch {
         heroBlob = undefined; // asset unavailable -> disclosed placeholder path
       }
-      const state = await sandbox!.applyDesign(demo.spec as DesignSpec, heroBlob);
-      specRef.current = demo.spec as DesignSpec;
-      setSpec(demo.spec as DesignSpec);
-      setIntent(demo.intent as DesignIntentGraph);
+      const state = await sandbox!.applyDesign(fetched.spec as DesignSpec, heroBlob);
+      specRef.current = fetched.spec as DesignSpec;
+      setSpec(fetched.spec as DesignSpec);
+      setIntent(fetched.intent as DesignIntentGraph);
+      const flagship = (fetched as { flagship?: { instruction: string; headline_text: string } | null }).flagship;
+      if (flagship) {
+        setInstruction(flagship.instruction);
+        setHeadlineText(flagship.headline_text);
+      }
       setDocState(state);
+      setImportNote(null);
       setStage("intent");
     } catch (e) {
       setError(String(e));
@@ -358,8 +364,11 @@ export default function App() {
             <button onClick={importMyDesign} disabled={!sandbox || busy}>
               {busy ? "Working…" : "Import my current page"}
             </button>
-            <button className="secondary" onClick={loadDesign} disabled={!sandbox || busy}>
-              Load demo campaign (LUMA SKIN)
+            <button className="secondary" onClick={() => loadDesign("alphaz")} disabled={!sandbox || busy}>
+              Load AI Expo poster campaign
+            </button>
+            <button className="secondary" onClick={() => loadDesign("luma")} disabled={!sandbox || busy}>
+              Load LUMA demo
             </button>
           </div>
           {docState && (

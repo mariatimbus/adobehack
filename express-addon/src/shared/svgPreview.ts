@@ -62,7 +62,7 @@ export function specToSvg(
     } else if (node.type === "image") {
       parts.push(
         `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#dfe7dd"${stroke}/>`,
-        `<text x="${x + w / 2}" y="${y + h / 2}" font-family="Helvetica, Arial, sans-serif" font-size="${Math.max(18, w / 10)}" fill="#5f6f5c" text-anchor="middle">🧴 hero</text>`
+        `<text x="${x + w / 2}" y="${y + h / 2}" font-family="Helvetica, Arial, sans-serif" font-size="${Math.max(18, w / 10)}" fill="#5f6f5c" text-anchor="middle">📷 image</text>`
       );
     } else {
       parts.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${node.fill ?? PALETTE_FALLBACK}"${stroke}/>`);

@@ -86,10 +86,23 @@ def health() -> dict:
 
 
 @app.get("/api/v1/design/demo")
-def design_demo() -> dict:
-    """The known 8-node LUMA SKIN campaign + its semantic intent graph."""
-    spec, intent = luma_spec(), luma_intent_graph()
-    return {"spec": spec.model_dump(), "intent": intent.model_dump(), "rules": DEMO_RULES}
+def design_demo(demo: str = "luma") -> dict:
+    """The known 8-node campaign + its semantic intent graph.
+
+    demo=luma   -> the fictional skincare reference campaign (spec §5)
+    demo=alphaz -> the team's AI Expo Europe poster, recreated natively
+    """
+    if demo == "alphaz":
+        from .fixtures.alphaz import (ALPHAZ_FLAGSHIP_HEADLINE, ALPHAZ_FLAGSHIP_INSTRUCTION,
+                                      alphaz_intent_graph, alphaz_spec)
+        spec, intent = alphaz_spec(), alphaz_intent_graph()
+        flagship = {"instruction": ALPHAZ_FLAGSHIP_INSTRUCTION,
+                    "headline_text": ALPHAZ_FLAGSHIP_HEADLINE}
+    else:
+        spec, intent = luma_spec(), luma_intent_graph()
+        flagship = None
+    return {"spec": spec.model_dump(), "intent": intent.model_dump(), "rules": DEMO_RULES,
+            "flagship": flagship}
 
 
 class IntentRequest(BaseModel):
