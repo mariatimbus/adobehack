@@ -445,7 +445,7 @@ async function verifyAppliedPatch(candidate: CandidateResult): Promise<PostApply
 
 // ---------------------------------------------------------------------------
 
-addOnSandboxSdk.runtime.exposeApi({
+addOnSandboxSdk.instance.runtime.exposeApi({
   applyDesign,
   applyRepairPatch,
   readDocumentState,

@@ -172,7 +172,8 @@ export default function App() {
     (async () => {
       try {
         await window.addOnUISdk!.ready;
-        const proxy = await window.addOnUISdk!.runtime.apiProxy<SandboxApi>("documentSandbox");
+        const { runtime } = window.addOnUISdk!.instance;
+        const proxy = await runtime.apiProxy<SandboxApi>("documentSandbox");
         setSandbox(() => proxy);
       } catch (e) {
         setError(`Adobe SDK init failed: ${e}. Panel must run inside Adobe Express (or use ?harness=1 for UI development).`);

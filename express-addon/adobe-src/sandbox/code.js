@@ -257,7 +257,7 @@ async function $(t) {
   const e = b();
   return D(t, e, e, 0);
 }
-P.runtime.exposeApi({
+P.instance.runtime.exposeApi({
   applyDesign: O,
   applyRepairPatch: N,
   readDocumentState: b,

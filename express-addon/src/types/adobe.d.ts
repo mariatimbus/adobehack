@@ -121,19 +121,21 @@ declare module "add-on-sdk-document-sandbox" {
   interface SandboxRuntime {
     exposeApi<T>(apiObj: T): void;
   }
-  const sandboxSdk: { runtime: SandboxRuntime };
+  const sandboxSdk: { instance: { runtime: SandboxRuntime } };
   export default sandboxSdk;
 }
 
 /** Global provided by https://new.express.adobe.com/static/add-on-sdk/sdk.js */
 interface AddOnUISdkGlobal {
   ready: Promise<void>;
-  app: { document: { promptForFile: (t: string) => Promise<File> } };
-  runtime: {
-    exposeApi<T>(apiObj: T): void;
-    apiProxy<T>(runtimeType: string): Promise<T>;
+  instance: {
+    runtime: {
+      exposeApi<T>(apiObj: T): void;
+      apiProxy<T>(runtimeType: string): Promise<T>;
+    };
   };
-  instance: { runtime: { exposeApi<T>(apiObj: T): void } };
+  app: { document: { promptForFile: (t: string) => Promise<File> } };
+  runtime?: unknown; // legacy shape — do not use
 }
 interface Window {
   addOnUISdk?: AddOnUISdkGlobal;
