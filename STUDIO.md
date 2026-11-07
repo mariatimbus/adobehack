@@ -40,6 +40,10 @@ content during creation. Uploaded/reference assets are prepared as browser
 PNG/JPEG Blobs; bitmap loads start in an active edit callback. Pages are built
 synchronously after async resource preparation. Failure removes only the new
 page. Animated source pages currently require separately supplied photos.
+The page visitation API is `editor.documentRoot.pages.visitPages`, on PageList.
+Creation can reuse an imported photo while a different page is selected, even
+without a preview bitmap. Creation errors and success are also shown beside
+the affected design's button so the result stays visible in a long gallery.
 
 ## Scores
 
@@ -92,7 +96,13 @@ vector layers; embedded bitmap artwork remains an image. Rasterized artwork
 is not traced or described as native vector geometry. All elements and detected
 cards start selected, with type/page filters and bulk selection controls.
 Cards can be inserted on separate pages or used as separated components in
-new designs and subsequent iterations. Native selection is limited to the
+new designs and subsequent iterations. Import immediately populates New design
+with all detected cards selected, without a separate transfer action. PDFs
+without detected cards provide editable page components instead. Card selection
+is shared between Import and New design; thumbnails never replace their native
+text/vector/image ingredients. The New design gallery shows its own generated
+versions, and Brand guidelines shows its own versions rather than reusing an
+unrelated gallery from another section. Native selection is limited to the
 current Adobe page; after batch insertion all layers on the last page are
 selected. Original pages remain intact.
 

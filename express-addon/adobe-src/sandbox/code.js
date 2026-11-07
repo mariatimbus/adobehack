@@ -44,35 +44,35 @@ function oe() {
   const e = S(), t = [], n = /* @__PURE__ */ new Set(), o = M(e).map((c) => {
     var u;
     q.set(c.id, a.context.currentPage.id);
-    let h = c.addOnData.getItem(I) ?? `import_${c.id}`;
-    n.has(h) && (h = `import_${c.id}`), n.add(h);
+    let p = c.addOnData.getItem(I) ?? `import_${c.id}`;
+    n.has(p) && (p = `import_${c.id}`), n.add(p);
     const g = te(c);
-    c.addOnData.setItem(I, h), c.addOnData.setItem("creativedna.kind", g);
-    const p = {
-      id: h,
+    c.addOnData.setItem(I, p), c.addOnData.setItem("creativedna.kind", g);
+    const h = {
+      id: p,
       type: g,
       role: "decoration",
       bbox: Q(c, e),
       expendable: !1
     };
-    if (!p.bbox.every(Number.isFinite)) throw new Error(`Cannot read bounds for element ${c.id}.`);
+    if (!h.bbox.every(Number.isFinite)) throw new Error(`Cannot read bounds for element ${c.id}.`);
     if (g === "text") {
       const r = c;
       try {
-        p.text = r.fullContent.text;
+        h.text = r.fullContent.text;
       } catch {
-        t.push(`${h}: text content unavailable`);
+        t.push(`${p}: text content unavailable`);
       }
-      Object.assign(p, ne(r)), p.font_size == null && t.push(`${h}: mixed or unreadable text styles`);
+      Object.assign(h, ne(r)), h.font_size == null && t.push(`${p}: mixed or unreadable text styles`);
     } else {
       try {
-        p.fill = G((u = c.fill) == null ? void 0 : u.color);
+        h.fill = G((u = c.fill) == null ? void 0 : u.color);
       } catch {
-        p.fill = null;
+        h.fill = null;
       }
-      g === "image" ? t.push(`${h}: image preview unavailable; original image retained on canvas`) : c.type !== O.SceneNodeType.rectangle && t.push(`${h}: shape represented by its bounds`);
+      g === "image" ? t.push(`${p}: image preview unavailable; original image retained on canvas`) : c.type !== O.SceneNodeType.rectangle && t.push(`${p}: shape represented by its bounds`);
     }
-    return p;
+    return h;
   }), s = a.context.currentPage.width, i = a.context.currentPage.height;
   if (!(s > 0 && i > 0)) throw new Error("Cannot read the current page dimensions.");
   return {
@@ -108,79 +108,80 @@ function Z(e = {}) {
 }
 async function ie(e, t, n, o, s = {}, i = {}) {
   if (!e.nodes.length || e.nodes.some((d) => !d.bbox.every(Number.isFinite) || d.bbox[2] <= 0 || d.bbox[3] <= 0)) throw new Error("Invalid concept geometry.");
-  const c = Object.values(s), h = new Set(c.map(K).filter((d) => !!d));
+  const c = Object.values(s), p = new Set(c.map(K).filter((d) => !!d));
   if (c.some((d) => !K(d))) {
-    const d = new Set(M(S()).map((b) => b.id));
-    if (!c.every((b) => d.has(b) || K(b))) throw new Error("Select and reload the original page to reconnect its images.");
-    h.add(a.context.currentPage.id);
+    const d = new Set(M(S()).map((w) => w.id));
+    if (!c.every((w) => d.has(w) || K(w))) throw new Error("Select and reload the original page to reconnect its images.");
+    p.add(a.context.currentPage.id);
   }
   const g = e.nodes.filter((d) => d.type === "image");
   for (const d of g)
     if (!s[d.id] && !n[d.id]) throw new Error("The photo could not be prepared. Load the original page or upload its image.");
-  let p;
+  let h;
   await a.keepContentActiveDuringAsync(a.context.currentPage, async () => {
   }, () => {
-    p = Promise.all(g.filter((d) => !s[d.id]).map((d) => a.loadBitmapImage(n[d.id]).then((b) => [d.id, b])));
+    h = Promise.all(g.filter((d) => !s[d.id]).map((d) => a.loadBitmapImage(n[d.id]).then((w) => [d.id, w])));
   });
-  const u = new Map(await p), r = [...new Set(e.nodes.filter((d) => d.type === "text").map((d) => Z(o[d.id])))], f = new Map(await Promise.all(r.map(async (d) => [d, await W.fromPostscriptName(d)]))), x = r.filter((d) => !f.get(d)).map((d) => `Font ${d} unavailable; Adobe default used. Review typography.`);
+  const u = new Map(await h), r = [...new Set(e.nodes.filter((d) => d.type === "text").map((d) => Z(o[d.id])))], f = new Map(await Promise.all(r.map(async (d) => [d, await W.fromPostscriptName(d)]))), x = r.filter((d) => !f.get(d)).map((d) => `Font ${d} unavailable; Adobe default used. Review typography.`);
   let m;
-  const l = (d, b) => {
-    if (c.some((y) => !d.has(y))) throw new Error("A source image was removed. Load the original page again.");
-    if (b && Array.from(b.artboards).length !== 1) throw new Error("Animated source pages need their images uploaded separately for a new layout.");
-    const _ = b ? M(Array.from(b.artboards)[0]) : [], v = b ? b.cloneInPlace() : a.documentRoot.pages.addPage(e.canvas);
+  const l = (d, w) => {
+    if (c.some((b) => !d.has(b))) throw new Error("A source image was removed. Load the original page again.");
+    if (w && Array.from(w.artboards).length !== 1) throw new Error("Animated source pages need their images uploaded separately for a new layout.");
+    const v = w ? M(Array.from(w.artboards)[0]) : [], _ = w ? w.cloneInPlace() : a.documentRoot.pages.addPage(e.canvas);
     try {
-      v.name = `CreativeDNA · ${t}`, v.width = e.canvas.width, v.height = e.canvas.height;
-      const y = Array.from(v.artboards)[0], C = b ? M(y) : [], E = new Map(_.map((w, D) => [w.id, C[D]])), R = /* @__PURE__ */ new Set();
-      for (const w of c) {
-        const D = E.get(w);
-        if (!D) throw new Error("The original image could not be copied.");
-        y.children.append(D), R.add(D);
+      _.name = `CreativeDNA · ${t}`, _.width = e.canvas.width, _.height = e.canvas.height;
+      const b = Array.from(_.artboards)[0], P = w ? M(b) : [], E = new Map(v.map((y, C) => [y.id, P[C]])), R = /* @__PURE__ */ new Set();
+      for (const y of c) {
+        const C = E.get(y);
+        if (!C) throw new Error("The original image could not be copied.");
+        b.children.append(C), R.add(C);
       }
-      if (b)
-        for (const w of Array.from(y.children)) R.has(w) || w.removeFromParent();
-      for (const w of e.nodes) {
-        const [D, A, L, H] = w.bbox;
-        let k;
-        if (i[w.id]) k = U(i[w.id], w.bbox, w.fill);
-        else if (w.type === "text") {
-          const P = a.createText(w.text ?? "");
-          P.layout = { type: 2, width: L }, P.textAlignment = O.TextAlignment.left, P.fullContent.applyParagraphStyles({ spaceBefore: 0, spaceAfter: 0, lineSpacing: 1 });
-          const Y = f.get(Z(o[w.id]));
-          P.fullContent.applyCharacterStyles({ ...Y ? { font: Y } : {}, fontSize: w.font_size ?? 24, color: J(w.color ?? "#172e2a") }), k = P;
-        } else if (w.type === "image") {
-          const P = E.get(s[w.id]);
-          P ? (k = P, k.resize({ width: L, behavior: "proportional", avoidScalingVisualDetailsIfPossible: !1 })) : k = a.createImageContainer(u.get(w.id), { initialSize: { width: Math.max(1, Math.round(L)), height: Math.max(1, Math.round(H)) } });
+      if (w)
+        for (const y of Array.from(b.children)) R.has(y) || y.removeFromParent();
+      for (const y of e.nodes) {
+        const [C, A, L, H] = y.bbox;
+        let D;
+        if (i[y.id]) D = U(i[y.id], y.bbox, y.fill);
+        else if (y.type === "text") {
+          const k = a.createText(y.text ?? "");
+          k.layout = { type: 2, width: L }, k.textAlignment = O.TextAlignment.left, k.fullContent.applyParagraphStyles({ spaceBefore: 0, spaceAfter: 0, lineSpacing: 1 });
+          const Y = f.get(Z(o[y.id]));
+          k.fullContent.applyCharacterStyles({ ...Y ? { font: Y } : {}, fontSize: y.font_size ?? 24, color: J(y.color ?? "#172e2a") }), D = k;
+        } else if (y.type === "image") {
+          const k = E.get(s[y.id]);
+          k ? (D = k, D.resize({ width: L, behavior: "proportional", avoidScalingVisualDetailsIfPossible: !1 })) : D = a.createImageContainer(u.get(y.id), { initialSize: { width: Math.max(1, Math.round(L)), height: Math.max(1, Math.round(H)) } });
         } else {
-          const P = a.createRectangle();
-          P.width = L, P.height = H, P.fill = a.makeColorFill(J(w.fill ?? "#ffffff")), k = P;
+          const k = a.createRectangle();
+          k.width = L, k.height = H, k.fill = a.makeColorFill(J(y.fill ?? "#ffffff")), D = k;
         }
-        y.children.append(k), k.setPositionInParent({ x: D, y: A }, { x: k.boundsLocal.x, y: k.boundsLocal.y }), k.addOnData.setItem(I, w.id), k.addOnData.setItem("creativedna.kind", w.type);
+        b.children.append(D), D.setPositionInParent({ x: C, y: A }, { x: D.boundsLocal.x, y: D.boundsLocal.y }), D.addOnData.setItem(I, y.id), D.addOnData.setItem("creativedna.kind", y.type);
       }
-      y.addOnData.setItem($, e.design_id), y.addOnData.setItem(N, "1"), m = {
+      b.addOnData.setItem($, e.design_id), b.addOnData.setItem(N, "1"), m = {
         design_id: e.design_id,
         version: 1,
         canvas: e.canvas,
         node_count: e.nodes.length,
-        bindings: Array.from(y.children).map((w) => ({ node_id: w.addOnData.getItem(I), adobe_node_id: w.id, type: e.nodes.find((D) => D.id === w.addOnData.getItem(I)).type, editable: !0 })),
+        bindings: Array.from(b.children).map((y) => ({ node_id: y.addOnData.getItem(I), adobe_node_id: y.id, type: e.nodes.find((C) => C.id === y.addOnData.getItem(I)).type, editable: !0 })),
         unsupported_properties: x
       };
-    } catch (y) {
-      throw a.documentRoot.pages.remove(v), y;
+    } catch (b) {
+      throw a.documentRoot.pages.remove(_), b;
     }
   };
   if (c.length) {
-    const d = Array.from(a.documentRoot.pages).filter((b) => h.has(b.id));
+    const d = Array.from(a.documentRoot.pages).filter((v) => p.has(v.id));
     if (d.length !== 1) throw new Error("Select and reload the original page before reusing its images.");
-    if (typeof a.visitPages == "function")
-      await a.visitPages(d, (b) => {
+    const w = a.documentRoot.pages;
+    if (typeof w.visitPages == "function")
+      await w.visitPages(d, (v) => {
         const _ = /* @__PURE__ */ new Map();
-        for (const v of b.artboards) for (const y of M(v)) _.set(y.id, y);
-        l(_, b);
+        for (const b of v.artboards) for (const P of M(b)) _.set(P.id, P);
+        l(_, v);
       });
     else {
       if (a.context.currentPage.id !== d[0].id) throw new Error("Select the original page, then create this version again.");
       await a.keepContentActiveDuringAsync(a.context.currentPage, async () => {
-      }, () => l(new Map(M(S()).map((b) => [b.id, b])), a.context.currentPage));
+      }, () => l(new Map(M(S()).map((v) => [v.id, v])), a.context.currentPage));
     }
   } else await a.keepContentActiveDuringAsync(a.context.currentPage, async () => {
   }, () => l(/* @__PURE__ */ new Map()));
@@ -202,7 +203,7 @@ async function re(e) {
       throw new Error(`Could not load image '${e[l].name}': ${d instanceof Error ? d.message : String(d)}. No reference pages were added.`);
     })));
   });
-  const s = await o, i = 6, c = 2, h = 3, g = Math.min(32, t.width * 0.04, t.height * 0.04), p = g * 0.75, u = g * 2.5, r = (t.width - g * 2 - p) / c, f = (t.height - u - g - p * (h - 1)) / h, x = [];
+  const s = await o, i = 6, c = 2, p = 3, g = Math.min(32, t.width * 0.04, t.height * 0.04), h = g * 0.75, u = g * 2.5, r = (t.width - g * 2 - h) / c, f = (t.height - u - g - h * (p - 1)) / p, x = [];
   return await a.keepContentActiveDuringAsync(a.context.currentPage, async () => {
   }, () => {
     try {
@@ -211,11 +212,11 @@ async function re(e) {
         x.push(l), l.name = `CreativeDNA · Imported references ${x.length}`;
         const d = Array.from(l.artboards)[0];
         d.addOnData.setItem($, `references-${l.id}`), d.addOnData.setItem(N, "1");
-        const b = a.createText(`Imported references · ${x.length}`);
-        b.fullContent.applyCharacterStyles({ fontSize: Math.max(12, g * 0.65), color: { red: 0.08, green: 0.17, blue: 0.21, alpha: 1 } }), d.children.append(b), b.setPositionInParent({ x: g, y: g }, { x: b.boundsLocal.x, y: b.boundsLocal.y });
-        for (let _ = m; _ < Math.min(m + i, e.length); _++) {
-          const v = e[_], y = Math.min(1, r / v.width, f / v.height), C = v.width * y, E = v.height * y, R = _ - m, w = g + R % c * (r + p) + (r - C) / 2, D = u + Math.floor(R / c) * (f + p) + (f - E) / 2, A = a.createImageContainer(s[_], { initialSize: { width: C, height: E } });
-          d.children.append(A), A.setPositionInParent({ x: w, y: D }, { x: A.boundsLocal.x, y: A.boundsLocal.y }), A.addOnData.setItem(I, `webimg_${A.id}`), A.addOnData.setItem("creativedna.kind", "image"), A.addOnData.setItem("creativedna.source_name", v.name);
+        const w = a.createText(`Imported references · ${x.length}`);
+        w.fullContent.applyCharacterStyles({ fontSize: Math.max(12, g * 0.65), color: { red: 0.08, green: 0.17, blue: 0.21, alpha: 1 } }), d.children.append(w), w.setPositionInParent({ x: g, y: g }, { x: w.boundsLocal.x, y: w.boundsLocal.y });
+        for (let v = m; v < Math.min(m + i, e.length); v++) {
+          const _ = e[v], b = Math.min(1, r / _.width, f / _.height), P = _.width * b, E = _.height * b, R = v - m, y = g + R % c * (r + h) + (r - P) / 2, C = u + Math.floor(R / c) * (f + h) + (f - E) / 2, A = a.createImageContainer(s[v], { initialSize: { width: P, height: E } });
+          d.children.append(A), A.setPositionInParent({ x: y, y: C }, { x: A.boundsLocal.x, y: A.boundsLocal.y }), A.addOnData.setItem(I, `webimg_${A.id}`), A.addOnData.setItem("creativedna.kind", "image"), A.addOnData.setItem("creativedna.source_name", _.name);
         }
       }
     } catch (m) {
@@ -236,8 +237,8 @@ async function se(e, t) {
   }, () => {
     s = Promise.all(o.map((r) => a.loadBitmapImage(t[r.id]).then((f) => [r.id, f])));
   });
-  const i = new Map(await s), c = await W.fromPostscriptName("ArialMT"), h = await W.fromPostscriptName("Arial-BoldMT"), g = [];
-  let p = 0;
+  const i = new Map(await s), c = await W.fromPostscriptName("ArialMT"), p = await W.fromPostscriptName("Arial-BoldMT"), g = [];
+  let h = 0;
   return await a.keepContentActiveDuringAsync(a.context.currentPage, async () => {
   }, () => {
     try {
@@ -245,24 +246,24 @@ async function se(e, t) {
         const f = a.documentRoot.pages.addPage({ width: r.width, height: r.height });
         g.push(f), f.name = `CreativeDNA · ${r.title}`;
         const x = Array.from(f.artboards)[0], m = [];
-        for (const l of [...r.elements].sort((d, b) => d.order - b.order)) {
-          const [d, b, _, v] = l.bbox;
-          let y;
+        for (const l of [...r.elements].sort((d, w) => d.order - w.order)) {
+          const [d, w, v, _] = l.bbox;
+          let b;
           if (l.kind === "text") {
-            const C = a.createText(l.text ?? "");
-            C.layout = { type: 2, width: _ + Math.max(2, _ * 0.025) }, C.textAlignment = O.TextAlignment.left, C.fullContent.applyParagraphStyles({ spaceBefore: 0, spaceAfter: 0, lineSpacing: 1 });
-            const E = l.bold ? h : c;
-            C.fullContent.applyCharacterStyles({ ...E ? { font: E } : {}, fontSize: l.font_size ?? 12, color: j(l.color ?? "#000000") }), y = C;
-          } else l.kind === "vector" ? y = U({ path: l.path_data, box: l.bbox, stroke: l.stroke, strokeWidth: l.stroke_width, opacity: l.opacity, evenOdd: l.even_odd }, l.bbox, l.fill) : y = a.createImageContainer(i.get(l.id), { initialSize: { width: _, height: v } });
-          x.children.append(y), y.setPositionInParent({ x: d, y: b }, { x: y.boundsLocal.x, y: y.boundsLocal.y }), y.opacity = l.opacity ?? 1, y.addOnData.setItem(I, l.id), y.addOnData.setItem("creativedna.kind", l.kind === "vector" ? "rectangle" : l.kind), y.addOnData.setItem("creativedna.pdf_kind", l.kind), y.addOnData.setItem("creativedna.source_name", l.label), m.push(y);
+            const P = a.createText(l.text ?? "");
+            P.layout = { type: 2, width: v + Math.max(2, v * 0.025) }, P.textAlignment = O.TextAlignment.left, P.fullContent.applyParagraphStyles({ spaceBefore: 0, spaceAfter: 0, lineSpacing: 1 });
+            const E = l.bold ? p : c;
+            P.fullContent.applyCharacterStyles({ ...E ? { font: E } : {}, fontSize: l.font_size ?? 12, color: j(l.color ?? "#000000") }), b = P;
+          } else l.kind === "vector" ? b = U({ path: l.path_data, box: l.bbox, stroke: l.stroke, strokeWidth: l.stroke_width, opacity: l.opacity, evenOdd: l.even_odd }, l.bbox, l.fill) : b = a.createImageContainer(i.get(l.id), { initialSize: { width: v, height: _ } });
+          x.children.append(b), b.setPositionInParent({ x: d, y: w }, { x: b.boundsLocal.x, y: b.boundsLocal.y }), b.opacity = l.opacity ?? 1, b.addOnData.setItem(I, l.id), b.addOnData.setItem("creativedna.kind", l.kind === "vector" ? "rectangle" : l.kind), b.addOnData.setItem("creativedna.pdf_kind", l.kind), b.addOnData.setItem("creativedna.source_name", l.label), m.push(b);
         }
-        x.addOnData.setItem($, `pdf-${f.id}`), x.addOnData.setItem(N, "1"), a.context.selection = m, p = a.context.selection.length;
+        x.addOnData.setItem($, `pdf-${f.id}`), x.addOnData.setItem(N, "1"), a.context.selection = m, h = a.context.selection.length;
       }
     } catch (r) {
       for (const f of [...g].reverse()) a.documentRoot.pages.remove(f);
       throw r;
     }
-  }), { pageCount: g.length, elementCount: n.length, selectedCount: p, warnings: ["PDF text uses Arial/Arial Bold fallbacks. Original raster cards remain raster backings with separately editable text."] };
+  }), { pageCount: g.length, elementCount: n.length, selectedCount: h, warnings: ["PDF text uses Arial/Arial Bold fallbacks. Original raster cards remain raster backings with separately editable text."] };
 }
 function de() {
   const e = Array.from(S().children);
@@ -275,8 +276,8 @@ async function ce() {
       const i = s.addOnData.getItem(I);
       if (i)
         try {
-          const c = s.boundsInNode(e), h = await s.createRendition({ scale: Math.min(1, 900 / Math.max(1, c.width, c.height)) });
-          h.blob ? n.push({ id: i, blob: h.blob }) : o.push(i);
+          const c = s.boundsInNode(e), p = await s.createRendition({ scale: Math.min(1, 900 / Math.max(1, c.width, c.height)) });
+          p.blob ? n.push({ id: i, blob: p.blob }) : o.push(i);
         } catch {
           o.push(i);
         }
@@ -316,22 +317,22 @@ async function le(e, t) {
     return z();
   for (const i of e.nodes) {
     if (o.has(i.id)) continue;
-    const [c, h, g, p] = i.bbox;
+    const [c, p, g, h] = i.bbox;
     if (i.type === "rectangle") {
       const u = a.createRectangle();
-      u.width = g, u.height = p, i.fill && (u.fill = a.makeColorFill(V(i.fill))), n.children.append(u), u.setPositionInParent({ x: c, y: h }, { x: 0, y: 0 }), u.addOnData.setItem(I, i.id), F(u, "rectangle");
+      u.width = g, u.height = h, i.fill && (u.fill = a.makeColorFill(V(i.fill))), n.children.append(u), u.setPositionInParent({ x: c, y: p }, { x: 0, y: 0 }), u.addOnData.setItem(I, i.id), F(u, "rectangle");
     } else if (i.type === "text") {
       const u = a.createText(i.text ?? "");
-      u.layout = { type: 2, width: g }, i.font_size && u.fullContent.applyCharacterStyles({ fontSize: i.font_size }), i.color && u.fullContent.applyCharacterStyles({ color: V(i.color) }), n.children.append(u), u.setPositionInParent({ x: c, y: h }, { x: 0, y: 0 }), u.addOnData.setItem(I, i.id), F(u, "text");
+      u.layout = { type: 2, width: g }, i.font_size && u.fullContent.applyCharacterStyles({ fontSize: i.font_size }), i.color && u.fullContent.applyCharacterStyles({ color: V(i.color) }), n.children.append(u), u.setPositionInParent({ x: c, y: p }, { x: 0, y: 0 }), u.addOnData.setItem(I, i.id), F(u, "text");
     } else if (i.type === "image")
       if (t) {
         const u = await a.loadBitmapImage(t), r = a.createImageContainer(u, {
-          initialSize: { width: g, height: p }
+          initialSize: { width: g, height: h }
         });
-        n.children.append(r), r.setPositionInParent({ x: c, y: h }, { x: 0, y: 0 }), r.addOnData.setItem(I, i.id), F(r, "image");
+        n.children.append(r), r.setPositionInParent({ x: c, y: p }, { x: 0, y: 0 }), r.addOnData.setItem(I, i.id), F(r, "image");
       } else {
         const u = a.createRectangle();
-        u.width = g, u.height = p, u.fill = a.makeColorFill(V("#dfe7dd")), n.children.append(u), u.setPositionInParent({ x: c, y: h }, { x: 0, y: 0 }), u.addOnData.setItem(I, i.id), F(u, "image_placeholder");
+        u.width = g, u.height = h, u.fill = a.makeColorFill(V("#dfe7dd")), n.children.append(u), u.setPositionInParent({ x: c, y: p }, { x: 0, y: 0 }), u.addOnData.setItem(I, i.id), F(u, "image_placeholder");
       }
   }
   const s = T();
@@ -379,7 +380,7 @@ function ge(e, t) {
     }
   }
 }
-async function he(e) {
+async function pe(e) {
   const t = Date.now(), n = B(), o = z(), s = Number(T().addOnData.getItem(N) ?? o.version);
   if (e.base_version !== s)
     return {
@@ -400,11 +401,11 @@ async function he(e) {
       recovered: null,
       status: "failed"
     };
-  const i = /* @__PURE__ */ new Map(), c = [], h = [];
+  const i = /* @__PURE__ */ new Map(), c = [], p = [];
   for (const f of e.operations) {
     const x = n.get(f.node_id);
     if (!x) {
-      h.push(f.node_id);
+      p.push(f.node_id);
       continue;
     }
     i.has(f.node_id) || i.set(f.node_id, ue(x)), c.push({ t: x, op: f });
@@ -415,21 +416,21 @@ async function he(e) {
   } catch (f) {
     g = String(f);
   }
-  let p = null;
+  let h = null;
   if (g) {
-    p = !0;
+    h = !0;
     for (const [f, x] of i) {
       const m = n.get(f);
       if (m)
         try {
           fe(m, x);
         } catch {
-          p = !1;
+          h = !1;
         }
     }
   }
   const u = z(), r = X(e, o, u, Date.now() - t);
-  return g && (r.status = p ? "partial_failure" : "failed", r.constraint_violations.push(`op failed: ${g}`)), r.recovered = g ? p : null, g || (T().addOnData.setItem(N, String(e.base_version + 1)), r.resulting_version = e.base_version + 1), r;
+  return g && (r.status = h ? "partial_failure" : "failed", r.constraint_violations.push(`op failed: ${g}`)), r.recovered = g ? h : null, g || (T().addOnData.setItem(N, String(e.base_version + 1)), r.resulting_version = e.base_version + 1), r;
 }
 function z() {
   const e = B(), t = [];
@@ -451,7 +452,7 @@ function z() {
     unsupported_properties: ["font_size_readback"]
   };
 }
-function pe(e) {
+function he(e) {
   return e.resulting_spec.nodes.map((t) => ({
     node_id: t.id,
     bbox: t.bbox,
@@ -484,23 +485,23 @@ function me() {
   return t;
 }
 function X(e, t, n, o) {
-  const s = pe(e), i = me(), c = 2, h = [];
+  const s = he(e), i = me(), c = 2, p = [];
   let g = 0;
   for (const f of s) {
     const x = i.find((l) => l.node_id === f.node_id);
     if (!x) {
-      h.push(f.node_id);
+      p.push(f.node_id);
       continue;
     }
     let m = !0;
     if (f.bbox && x.bbox)
       for (let l = 0; l < 4; l++)
         Math.abs(f.bbox[l] - x.bbox[l]) > c && (m = !1);
-    f.text !== null && f.text !== void 0 && x.text !== f.text && (m = !1), f.visible !== null && f.visible !== void 0 && x.visible !== f.visible && (m = !1), m ? g++ : h.push(f.node_id);
+    f.text !== null && f.text !== void 0 && x.text !== f.text && (m = !1), f.visible !== null && f.visible !== void 0 && x.visible !== f.visible && (m = !1), m ? g++ : p.push(f.node_id);
   }
-  const p = ["font_size_readback", "canvas_size"], u = n.bindings.length >= t.bindings.length && n.bindings.every((f) => f.editable);
+  const h = ["font_size_readback", "canvas_size"], u = n.bindings.length >= t.bindings.length && n.bindings.every((f) => f.editable);
   let r = "verified";
-  return p.length > 0 && (r = "verified_with_gaps"), h.length > 0 && (r = "partial_failure"), g === 0 && (r = "failed"), {
+  return h.length > 0 && (r = "verified_with_gaps"), p.length > 0 && (r = "partial_failure"), g === 0 && (r = "failed"), {
     design_id: n.design_id,
     base_version: e.base_version,
     resulting_version: n.version,
@@ -508,12 +509,12 @@ function X(e, t, n, o) {
     planned: s,
     observed: i,
     matched: g,
-    mismatched: h,
-    unsupported_measurements: p,
+    mismatched: p,
+    unsupported_measurements: h,
     node_count_before: t.node_count,
     node_count_after: n.node_count,
     editability_retained: u,
-    constraint_violations: h.map((f) => `mismatch: ${f}`),
+    constraint_violations: p.map((f) => `mismatch: ${f}`),
     apply_duration_ms: o,
     recovered: null,
     status: r
@@ -524,10 +525,10 @@ async function be(e, t) {
   if (!o) throw new Error(`node '${e}' not found in document`);
   if (o.kind === "image_placeholder" && (o.kind = "image"), o.kind !== "image" && o.kind !== "rectangle")
     throw new Error(`node '${e}' is not replaceable with an image (kind=${o.kind})`);
-  const s = o.node, i = typeof s.width == "number" ? s.width : 420, c = typeof s.height == "number" ? s.height : 620, h = { ...o.node.translation }, g = await a.loadBitmapImage(t), p = a.createImageContainer(g, {
+  const s = o.node, i = typeof s.width == "number" ? s.width : 420, c = typeof s.height == "number" ? s.height : 620, p = { ...o.node.translation }, g = await a.loadBitmapImage(t), h = a.createImageContainer(g, {
     initialSize: { width: i, height: c }
   });
-  a.context.insertionParent.children.append(p), p.setPositionInParent(h, { x: 0, y: 0 }), p.addOnData.setItem(I, e), F(p, "image");
+  a.context.insertionParent.children.append(h), h.setPositionInParent(p, { x: 0, y: 0 }), h.addOnData.setItem(I, e), F(h, "image");
   const u = o.node;
   return typeof u.removeFromParent == "function" && u.removeFromParent(), z();
 }
@@ -547,7 +548,7 @@ ee.instance.runtime.exposeApi({
   capturePreviewAssets: ce,
   createConceptPage: ie,
   applyDesign: le,
-  applyRepairPatch: he,
+  applyRepairPatch: pe,
   importCurrentDesign: ye,
   insertImageNodes: re,
   readDocumentState: z,

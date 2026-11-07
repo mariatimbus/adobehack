@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest';
-import {cardSelectionPages,pdfSelectionPages,cardComponent,expandComponent,mapPath,type PdfImport} from '../src/shared/pdfElements';
+import {cardSelectionPages,pdfSelectionPages,cardComponent,expandComponent,pdfReferenceImages,mapPath,type PdfImport} from '../src/shared/pdfElements';
 import {generateDesigns,iterateVersions,type BrandProfile} from '../src/shared/studio';
 import {specToSvg} from '../src/shared/svgPreview';
 const pdf:PdfImport={filename:'pinterest.pdf',source_id:'source',element_count:3,counts:{vector:1,text:1,image:1},warnings:[],provenance:'pdf_object_extraction',pages:[{id:'page',page_number:1,width:810,height:1012.5,preview_url:'data:image/png;base64,AA==',counts:{vector:1,text:1,image:1},elements:[
@@ -27,4 +27,23 @@ it('new designs and re-composed iterations preserve editable PDF components',()=
  for(const version of designs){expect(version.spec.nodes.some(n=>n.text==='Free')).toBe(true);expect(Object.keys(version.vectors!)).toContain('photo-0');}
  const iterations=iterateVersions(designs[0],'More editorial');expect(iterations).toHaveLength(3);
  for(const v of iterations){expect(v.parentId).toBe(designs[0].id);expect(v.spec.nodes.some(n=>n.text==='Free')).toBe(true);expect(v.vectors?.['photo-0']).toBeDefined();}
+});
+
+it('makes imported Pinterest cards immediately available to new designs without using the loaded page photo',()=>{
+ const refs=pdfReferenceImages(pdf);
+ expect(refs.map(r=>r.id)).toEqual(['card']);expect(refs[0].component?.elements.map(e=>e.kind)).toEqual(['vector','text','image']);
+ const designs=generateDesigns({copy:{brand:'Test',headline:'A clearer picture.',body:'Create something from your inspiration.',cta:'Learn more'},images:refs,origin:'new',format:'portrait'});
+ for(const v of designs){
+  expect(v.origin).toBe('new');expect(v.nativeSources).toEqual({});
+  expect(v.spec.nodes.some(n=>n.text==='Free')).toBe(true);expect(v.assets['photo-2']).toBe(pdf.pages[0].elements[2].image_url);
+ }
+ expect(pdfReferenceImages(pdf,['card','card']).map(i=>i.id)).toEqual(['card']);
+ expect(pdfReferenceImages(pdf,[])).toEqual([]);
+});
+
+it('uses editable page components if a PDF has no detected cards, instead of leaving New design with zero references',()=>{
+ const noCards={...pdf,cards:[]};const refs=pdfReferenceImages(noCards);
+ expect(refs).toHaveLength(1);expect(refs[0].component?.elements).toEqual(pdf.pages[0].elements);
+ expect(refs[0].component?.bounds).toEqual([0,0,810,1012.5]);
+ expect(pdfReferenceImages({...noCards,pages:[]})).toEqual([]);
 });

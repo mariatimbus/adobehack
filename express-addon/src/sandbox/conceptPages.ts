@@ -101,8 +101,9 @@ export async function createConceptPage(spec: DesignSpec, title: string, images:
   if (nativeIds.length) {
     const pages = Array.from(editor.documentRoot.pages).filter(page => sourcePageIds.has(page.id));
     if (pages.length !== 1) throw new Error('Select and reload the original page before reusing its images.');
-    if (typeof editor.visitPages === 'function') {
-      await editor.visitPages(pages, active => {
+    const pageList = editor.documentRoot.pages;
+    if (typeof pageList.visitPages === 'function') {
+      await pageList.visitPages(pages, active => {
         const originals = new Map<string, VisualNode>();
         for (const board of active.artboards) for (const node of pageElements(board)) originals.set(node.id, node);
         buildPage(originals, active);

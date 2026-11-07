@@ -1,5 +1,6 @@
 import type { BBox, DesignNode } from './contracts';
 import type { TextStyle } from './textLayout';
+import type { StudioImage } from './studio';
 
 export interface VectorStyle { path:string; box:BBox; stroke?:string|null; strokeWidth?:number; opacity?:number; evenOdd?:boolean }
 export interface PdfElement {
@@ -21,6 +22,16 @@ export function pdfSelectionPages(pdf:PdfImport,ids:string[]):PdfInsertPage[] {
 export function cardComponent(pdf:PdfImport,card:PdfCard):PdfComponent {
   const members=new Set(card.element_ids);
   return {id:card.id,label:card.label,bounds:card.bbox,elements:pdf.pages.find(p=>p.page_number===card.page_number)!.elements.filter(e=>members.has(e.id)),previewUrl:card.preview_url};
+}
+/** Imports are immediately usable by New design. Keep original PDF objects
+ * as components; preview images are only thumbnails, never their replacement. */
+export function pdfReferenceImages(pdf:PdfImport,cardIds?:string[]):StudioImage[]{
+  if(pdf.cards.length||cardIds!==undefined){
+    const chosen=cardIds===undefined?undefined:new Set(cardIds);
+    return pdf.cards.filter(c=>!chosen||chosen.has(c.id)).map(c=>({id:c.id,name:c.label,width:c.bbox[2],height:c.bbox[3],url:c.preview_url,component:cardComponent(pdf,c)}));
+  }
+  return pdf.pages.filter(p=>p.elements.length).map(p=>({id:`pdf-page-${p.id}`,name:`${pdf.filename} · page ${p.page_number}`,width:p.width,height:p.height,url:p.preview_url,
+    component:{id:`pdf-page-${p.id}`,label:`Page ${p.page_number}`,bounds:[0,0,p.width,p.height],elements:p.elements,previewUrl:p.preview_url}}));
 }
 export function cardSelectionPages(pdf:PdfImport,ids:string[]):PdfInsertPage[] {
   const chosen=new Set(ids);

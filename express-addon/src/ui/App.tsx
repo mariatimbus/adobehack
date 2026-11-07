@@ -10,6 +10,7 @@ import { prepareVersionImages,readImageFiles } from './studioAssets';
 import type { WebImageInput,WebImageInsertResult } from '../shared/webImages';
 import PdfLibrary from './PdfLibrary';
 import type {PdfImport,PdfInsertPage,PdfInsertResult,VectorStyle} from '../shared/pdfElements';
+import {pdfReferenceImages} from '../shared/pdfElements';
 
 type Section='import'|'load'|'brand'|'analyze'|'iterations'|'new';
 interface SandboxApi {
@@ -46,6 +47,7 @@ export default function App(){
   const [section,setSection]=useState<Section>('load');const [sandbox,setSandbox]=useState<SandboxApi|null>(null);
   const [connection,setConnection]=useState(harness?'Preview workspace':'Connecting to Adobe…');
   const [busy,setBusy]=useState('');const [error,setError]=useState('');const [notice,setNotice]=useState('');
+  const [creationErrors,setCreationErrors]=useState<Record<string,string>>({});
   const [versions,setVersions]=useState<StudioVersion[]>([]);const [selectedId,setSelectedId]=useState('');const [sourceId,setSourceId]=useState('');
   const [brand,setBrand]=useState<BrandProfile>();const [brandFile,setBrandFile]=useState('');
   const [webUrl,setWebUrl]=useState('');const [removeBg,setRemoveBg]=useState(false);const [webImages,setWebImages]=useState<WebImage[]>([]);
@@ -99,8 +101,11 @@ export default function App(){
     if(isPinterestLink){
       // This flow deliberately uses the supplied Pinterest PDF as its source.
       // Keep that provenance visible instead of implying a live board scrape.
-      const pdf=await importPinterestPdf();setPinterestPdf(pdf);setWebImages([]);setReferenceImages([]);setChosenImages([]);setReferenceColors([]);setReferenceErrors([]);setReferenceNote('');
-      setNotice(`${pdf.element_count} elements and ${pdf.cards.length} cards imported from ${pdf.filename}. All are selected.`);return;
+      const pdf=await importPinterestPdf(),refs=pdfReferenceImages(pdf);
+      if(!refs.length)throw new Error('No editable elements were found in the Pinterest PDF.');
+      setPinterestPdf(pdf);setWebImages([]);setReferenceImages(refs);setChosenImages(refs.map(i=>i.id));setReferenceColors([]);setReferenceErrors([]);
+      setReferenceNote(`${refs.length} editable ${pdf.cards.length?'cards':'page components'} from ${pdf.filename}. Ready for New design.`);
+      setNotice(`${pdf.element_count} elements imported from ${pdf.filename}. ${refs.length} editable references are selected and ready in New design.`);return;
     }
     const res=await importFromUrl(webUrl.trim(),removeBg);setPinterestPdf(undefined);setWebImages(res.images);
     const refs=res.images.map(image=>({id:`web-${image.id}`,name:image.id,url:`data:${image.content_type};base64,${image.data_b64}`,width:image.width,height:image.height}));
@@ -147,7 +152,7 @@ export default function App(){
     setNotice(`${result.elementCount} native elements added across ${result.pageCount} pages. ${result.selectedCount} layers selected on the last page. Text uses available Arial fallbacks.`);
   }
   function usePdfCards(items:StudioImage[]){
-    setReferenceImages(items);setChosenImages(items.map(i=>i.id));setWebImages([]);setReferenceColors([]);
+    setReferenceImages(pinterestPdf?pdfReferenceImages(pinterestPdf):items);setChosenImages(items.map(i=>i.id));setWebImages([]);setReferenceColors([]);
     setReferenceNote(`${items.length} PDF cards ready as editable components.`);setSection('new');setNotice('Selected cards will keep their separate text, vector and image layers.');
   }
   async function uploadReferences(files:File[]){await work('Reading reference images',async()=>{
@@ -170,7 +175,7 @@ export default function App(){
       const items=generateDesigns({copy:inputCopy,images,brand,format,referenceColors,origin});append(items);setNotice('Three editable directions are ready. Choose one to create a new Adobe page.');
     }catch(e){setError(errorText(e));}
   }
-  async function createPage(version:StudioVersion){await work(`Creating ${version.title}`,async()=>{
+  async function createPage(version:StudioVersion){if(busy)return;setCreationErrors(all=>({...all,[version.id]:''}));await work(`Creating ${version.title}`,async()=>{try{
     if(harness){
       const embedded={...version.assets};
       for(const [id,url] of Object.entries(embedded))if(!url.startsWith('data:')){const res=await fetch(url);if(!res.ok)throw new Error('Could not embed the design image.');embedded[id]=await blobDataUrl(await res.blob());}
@@ -182,10 +187,11 @@ export default function App(){
     if(state.node_count!==version.spec.nodes.length)throw new Error('Page creation was incomplete. Review the new page in Adobe.');
     setVersions(all=>all.map(v=>v.id===version.id?{...v,pageCreated:true}:v));
     setNotice(`${version.title} created with ${state.node_count} native editable layers.${state.unsupported_properties.length?` ${state.unsupported_properties.join(' ')}`:''}`);
-  });}
+  }catch(e){setCreationErrors(all=>({...all,[version.id]:errorText(e)}));throw e;}});}
   function createIteration(){if(!selected)return;setError('');try{const next=iterateVersions(selected,request,replacement,brand??selected.brand);append(next);setNotice('Three redesigned iterations are ready. Each uses the selected brand and keeps the original version.');}catch(e){setError(errorText(e));}}
   const analyses=useMemo(()=>versions.map(v=>({version:v,analysis:analyzePost(v,brand)})),[versions,brand]);
-  const gallery=versions.filter(v=>galleryIds.includes(v.id)&&v.origin!=='loaded');
+  const galleryOrigin=section==='new'?'new':section==='brand'?'brand':undefined;
+  const gallery=galleryOrigin?versions.filter(v=>v.origin===galleryOrigin).slice(-3):versions.filter(v=>galleryIds.includes(v.id)&&v.origin!=='loaded');
   const originalCounts=['text','image','rectangle'].map(type=>source?.spec.nodes.filter(n=>n.type===type).length??0);
 
   function versionCard(v:StudioVersion,compact=false){const score=analyzePost(v,brand);const missing=v.spec.nodes.filter(n=>n.type==='image'&&!v.assets[n.asset_id??n.id]&&!v.assets[n.id]).length;
@@ -198,6 +204,8 @@ export default function App(){
         <p>{v.spec.canvas.width} × {v.spec.canvas.height} <span>·</span> {v.spec.nodes.length} layers</p>
         {!!missing&&<p className="small-note">{missing} original image previews unavailable. Native images are preserved when you create the page.</p>}
         <button className="primary full" disabled={!!busy||(!harness&&!sandbox)} onClick={()=>void createPage(v)}><Icon name={v.pageCreated?'check':'plus'} size={16}/>{busy.includes(v.title)?'Creating page…':harness?'Download SVG':v.pageCreated?'Create another copy':'Create editable page'}</button>
+        {creationErrors[v.id]&&<p className="message error" role="alert">{creationErrors[v.id]}</p>}
+        {v.pageCreated&&<p className="small-note" role="status">Editable page created in Adobe Express.</p>}
         {v.origin==='iteration'&&<ul className="change-list">{v.changes.slice(0,3).map((change,i)=><li key={i}>{change}</li>)}</ul>}<div className="card-actions"><button className="text-button" onClick={()=>{setSelectedId(v.id);setSection('analyze');setAnalyzed(true);}}>Analyze version</button><button className="text-button" onClick={()=>{setSelectedId(v.id);setSection('iterations');}}>Make an iteration <span>↗</span></button></div>
       </div>
     </article>;
@@ -221,8 +229,8 @@ export default function App(){
           {!isPinterestLink&&<label className="checkbox"><input type="checkbox" checked={removeBg} onChange={e=>setRemoveBg(e.target.checked)}/>Remove backgrounds <span>local U²-Net</span></label>}
           <div className="or-divider"><span>or add your own</span></div><label className="upload-zone"><Icon name="plus"/><strong>Upload reference images</strong><span>PNG, JPG, WebP · select multiple files</span><input type="file" multiple accept="image/*" disabled={!!busy} onChange={e=>{if(e.target.files)void uploadReferences(Array.from(e.target.files));e.target.value='';}}/></label>
         </section>
-        {pinterestPdf&&<PdfLibrary pdf={pinterestPdf} busy={!!busy} connected={!!sandbox} run={work} onInsert={insertPdf} onUse={usePdfCards} onSelectAll={async()=>{const n=await sandbox!.selectAllPageElements();setNotice(`${n} layers selected on the current page.`);}}/>}
-        {!!referenceImages.length&&<section className="surface"><div className="section-title"><h2>Your inspiration library</h2><span className="count-pill">{referenceImages.length}</span></div><p className="muted">{referenceNote}</p><div className="reference-grid">{referenceImages.map(image=><figure key={image.id}><img src={image.url} alt={image.name}/><figcaption>{image.width} × {image.height}</figcaption></figure>)}</div>
+        {pinterestPdf&&<PdfLibrary pdf={pinterestPdf} selectedCardIds={chosenImages} onCardsChange={setChosenImages} busy={!!busy} connected={!!sandbox} run={work} onInsert={insertPdf} onUse={usePdfCards} onSelectAll={async()=>{const n=await sandbox!.selectAllPageElements();setNotice(`${n} layers selected on the current page.`);}}/>}
+        {!!referenceImages.length&&!pinterestPdf&&<section className="surface"><div className="section-title"><h2>Your inspiration library</h2><span className="count-pill">{referenceImages.length}</span></div><p className="muted">{referenceNote}</p><div className="reference-grid">{referenceImages.map(image=><figure key={image.id}><img src={image.url} alt={image.name}/><figcaption>{image.width} × {image.height}</figcaption></figure>)}</div>
           <button className="primary full" disabled={!!busy||!sandbox} onClick={()=>void insertReferences()}><Icon name="layers" size={17}/>Add {referenceImages.length} on separate pages</button><button className="secondary full" onClick={()=>navigate('new')}>Create a design from these <Icon name="arrow" size={16}/></button>
           {!!referenceErrors.length&&<details><summary>{referenceErrors.length} images couldn’t be fetched</summary>{referenceErrors.map((msg,i)=><p className="small-note" key={i}>{msg}</p>)}</details>}
         </section>}

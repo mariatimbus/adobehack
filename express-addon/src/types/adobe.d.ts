@@ -128,7 +128,7 @@ declare module "express-document-sdk" {
   export class Editor {
     createPath(data: string): FillableNode;
     makeStroke(options: {color: Color; width:number}): unknown;
-    readonly documentRoot: { pages: { [Symbol.iterator](): Iterator<PageNode>; addPage(geometry: { width: number; height: number }): PageNode; remove(page: PageNode): void } };
+    readonly documentRoot: { pages: { [Symbol.iterator](): Iterator<PageNode>; addPage(geometry: { width: number; height: number }): PageNode; remove(page: PageNode): void; visitPages?(pages: PageNode[], callback: (page: PageNode) => void | Promise<void>): Promise<void> } };
     get context(): {
       insertionParent: ContainerNode;
       currentPage: PageNode;
@@ -147,7 +147,6 @@ declare module "express-document-sdk" {
       asyncLambda: () => Promise<T>,
       afterAsyncCallback: (result: T) => void
     ): Promise<void>;
-    visitPages(pages: PageNode[], callback: (page: PageNode) => void | Promise<void>): Promise<void>;
   }
   export const editor: Editor;
   export interface AvailableFont { readonly family: string; readonly postscriptName: string }

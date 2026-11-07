@@ -1,18 +1,19 @@
 import React,{useEffect,useState} from 'react';
 import type {PdfImport,PdfElement,PdfInsertPage} from '../shared/pdfElements';
-import {cardSelectionPages,pdfSelectionPages,cardComponent} from '../shared/pdfElements';
+import {cardSelectionPages,pdfSelectionPages,pdfReferenceImages} from '../shared/pdfElements';
 import type {StudioImage} from '../shared/studio';
 
-interface Props {pdf:PdfImport;busy:boolean;connected:boolean;run:(label:string,task:()=>Promise<void>)=>Promise<void>;onInsert:(pages:PdfInsertPage[])=>Promise<void>;onUse:(items:StudioImage[])=>void;onSelectAll:()=>Promise<void>}
-export default function PdfLibrary({pdf,busy,connected,run,onInsert,onUse,onSelectAll}:Props){
-  const [selected,setSelected]=useState<string[]>(()=>pdf.pages.flatMap(p=>p.elements.map(e=>e.id)));const [cards,setCards]=useState<string[]>(()=>pdf.cards.map(c=>c.id));
+interface Props {pdf:PdfImport;selectedCardIds:string[];onCardsChange:(ids:string[])=>void;busy:boolean;connected:boolean;run:(label:string,task:()=>Promise<void>)=>Promise<void>;onInsert:(pages:PdfInsertPage[])=>Promise<void>;onUse:(items:StudioImage[])=>void;onSelectAll:()=>Promise<void>}
+export default function PdfLibrary({pdf,selectedCardIds,onCardsChange,busy,connected,run,onInsert,onUse,onSelectAll}:Props){
+  const [selected,setSelected]=useState<string[]>(()=>pdf.pages.flatMap(p=>p.elements.map(e=>e.id)));
+  const cards=selectedCardIds.filter(id=>pdf.cards.some(c=>c.id===id)),setCards=onCardsChange;
   const [tab,setTab]=useState<'cards'|'elements'>('cards');const [kind,setKind]=useState('all');const [pageNumber,setPageNumber]=useState(0);
-  useEffect(()=>{setSelected(pdf.pages.flatMap(p=>p.elements.map(e=>e.id)));setCards(pdf.cards.map(c=>c.id));setTab(pdf.cards.length?'cards':'elements');setKind('all');setPageNumber(0);},[pdf]);
+  useEffect(()=>{setSelected(pdf.pages.flatMap(p=>p.elements.map(e=>e.id)));setTab(pdf.cards.length?'cards':'elements');setKind('all');setPageNumber(0);},[pdf]);
   const elements=pdf.pages.flatMap(p=>p.elements);
   const shown=elements.filter(e=>(kind==='all'||e.kind===kind)&&(!pageNumber||e.page_number===pageNumber));
   const toggle=(id:string)=>setSelected(ids=>ids.includes(id)?ids.filter(x=>x!==id):[...ids,id]);
   const setMany=(ids:string[],yes:boolean)=>setSelected(current=>yes?[...new Set([...current,...ids])]:current.filter(id=>!ids.includes(id)));
-  function useCards(){if(!pdf)return;onUse(pdf.cards.filter(c=>cards.includes(c.id)).map(c=>({id:c.id,name:c.label,width:c.bbox[2],height:c.bbox[3],url:c.preview_url,component:cardComponent(pdf,c)})));}
+  function useCards(){onUse(pdfReferenceImages(pdf,cards));}
   function elementPreview(e:PdfElement){return e.kind==='image'?<img src={e.image_url} alt=""/>:e.kind==='text'?<span className="pdf-text-icon">T</span>:<svg viewBox={`${e.bbox[0]} ${e.bbox[1]} ${e.bbox[2]} ${e.bbox[3]}`}><path d={e.path_data} fill={e.fill??'none'} stroke={e.stroke??'#000'} strokeWidth={e.stroke_width||1}/></svg>;}
   return <section className="surface pdf-library">
     <p className="small-note">Imported from {pdf.filename}</p>
@@ -20,7 +21,7 @@ export default function PdfLibrary({pdf,busy,connected,run,onInsert,onUse,onSele
       <div className="library-tabs" role="tablist" aria-label="PDF content"><button role="tab" aria-selected={tab==='cards'} onClick={()=>setTab('cards')}>Cards <span>{pdf.cards.length}</span></button><button role="tab" aria-selected={tab==='elements'} onClick={()=>setTab('elements')}>All elements <span>{pdf.element_count}</span></button></div>
       {tab==='cards'?<>
         <div className="selection-toolbar"><span>{cards.length} / {pdf.cards.length} selected</span><button className="text-button" onClick={()=>setCards(pdf.cards.map(c=>c.id))}>Select all cards</button><button className="text-button" onClick={()=>setCards([])}>Clear</button></div>
-        <div className="pdf-card-grid">{pdf.cards.map(card=><button key={card.id} className={`pdf-card ${cards.includes(card.id)?'chosen':''}`} aria-pressed={cards.includes(card.id)} aria-label={`Select ${card.kind.replace(/_/g,' ')}: ${card.label}`} onClick={()=>setCards(ids=>ids.includes(card.id)?ids.filter(id=>id!==card.id):[...ids,card.id])}><div className="pdf-card-art"><img src={card.preview_url} alt={card.label}/><span className="selection-box">{cards.includes(card.id)?'✓':'+'}</span></div><span className="eyebrow">{card.kind.replace(/_/g,' ')}</span><strong>{card.label}</strong><small>{card.element_ids.length} layers · page {card.page_number}</small></button>)}</div>
+        <div className="pdf-card-grid">{pdf.cards.map(card=><button key={card.id} className={`pdf-card ${cards.includes(card.id)?'chosen':''}`} aria-pressed={cards.includes(card.id)} aria-label={`Select ${card.kind.replace(/_/g,' ')}: ${card.label}`} onClick={()=>setCards(cards.includes(card.id)?cards.filter(id=>id!==card.id):[...cards,card.id])}><div className="pdf-card-art"><img src={card.preview_url} alt={card.label}/><span className="selection-box">{cards.includes(card.id)?'✓':'+'}</span></div><span className="eyebrow">{card.kind.replace(/_/g,' ')}</span><strong>{card.label}</strong><small>{card.element_ids.length} layers · page {card.page_number}</small></button>)}</div>
         <button className="primary full" disabled={busy||!connected||!cards.length} onClick={()=>void run('Creating editable card pages',()=>onInsert(cardSelectionPages(pdf,cards)))}>Add {cards.length} editable cards on separate pages <span>↗</span></button>
         <button className="secondary full" disabled={busy||!cards.length} onClick={useCards}>Use selected cards in new designs <span>↗</span></button>
       </>:<>
