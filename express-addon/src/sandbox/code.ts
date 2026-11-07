@@ -42,9 +42,35 @@ import type {
   PostApplyReport,
 } from "../shared/contracts";
 
-const NODE_ID_KEY = "creativedna.node_id";
-const DESIGN_ID_KEY = "creativedna.design_id";
-const VERSION_KEY = "creativedna.version";
+import {
+  NODE_ID_KEY, DESIGN_ID_KEY, VERSION_KEY,
+  currentArtboard, extractCurrentPage, pageElements, pageBounds,
+} from "./pageImport";
+import { createConceptPage } from "./conceptPages";
+import { insertImageNodes } from "./webImagePages";
+import { insertPdfPages, selectAllPageElements } from './pdfPages';
+
+/** Transparent appearance snapshots for panel previews only. Missing or
+ * unsupported renditions are reported, not replaced by invented images. */
+async function capturePreviewAssets(): Promise<{ assets: Array<{ id: string; blob: Blob }>; missing: string[] }> {
+  const root = currentArtboard();
+  const elements = pageElements(root);
+  const assets: Array<{ id: string; blob: Blob }> = [];
+  const missing: string[] = [];
+  await editor.keepContentActiveDuringAsync(root, async () => {
+    for (const node of elements) {
+      const id = node.addOnData.getItem(NODE_ID_KEY);
+      if (!id) continue;
+      try {
+        const b = node.boundsInNode(root);
+        const rendered = await node.createRendition({ scale: Math.min(1, 900 / Math.max(1, b.width, b.height)) });
+        if (rendered.blob) assets.push({ id, blob: rendered.blob });
+        else missing.push(id);
+      } catch { missing.push(id); }
+    }
+  }, () => {});
+  return { assets, missing };
+}
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -69,19 +95,13 @@ interface TrackedNode {
  *  sessions because the mapping lives in node.addOnData, not in memory. */
 function collectTracked(): Map<string, TrackedNode> {
   const map = new Map<string, TrackedNode>();
-  const parent = editor.context.insertionParent;
-  const walk = (nodes: Iterable<VisualNode>) => {
-    for (const n of nodes) {
-      const id = n.addOnData?.getItem(NODE_ID_KEY);
-      if (id) {
-        const kind = n.addOnData.getItem("creativedna.kind") ?? "rectangle";
-        map.set(id, { node: n, kind });
-      }
-      const children = (n as unknown as { children?: Iterable<VisualNode> }).children;
-      if (children) walk(children as Iterable<VisualNode>);
+  for (const n of pageElements(currentArtboard())) {
+    const id = n.addOnData.getItem(NODE_ID_KEY);
+    if (id) {
+      const kind = n.addOnData.getItem("creativedna.kind") ?? "rectangle";
+      map.set(id, { node: n, kind });
     }
-  };
-  walk(parent.children as unknown as Iterable<VisualNode>);
+  }
   return map;
 }
 
@@ -90,7 +110,7 @@ function recordKind(node: VisualNode, kind: string): void {
 }
 
 function pageRoot(): VisualNode {
-  return editor.context.insertionParent as unknown as VisualNode;
+  return currentArtboard();
 }
 
 // ---------------------------------------------------------------------------
@@ -312,10 +332,10 @@ function readDocumentState(): DocumentState {
   return {
     design_id: root.addOnData.getItem(DESIGN_ID_KEY) ?? "unknown",
     version: Number(root.addOnData.getItem(VERSION_KEY) ?? 0),
-    canvas: { width: 0, height: 0 }, // artboard size readback unsupported in current SDK typings
+    canvas: { width: currentArtboard().width, height: currentArtboard().height },
     bindings,
     node_count: bindings.length,
-    unsupported_properties: ["canvas_size", "font_size_readback"],
+    unsupported_properties: ["font_size_readback"],
   };
 }
 
@@ -341,11 +361,11 @@ function observedNodes(): ObservedNode[] {
         text = null; // unreadable -> observed stays true for bbox, text null
       }
     }
-    const b = t.node.boundsInParent;
+    const bbox = pageBounds(t.node, currentArtboard());
     out.push({
       node_id,
       adobe_node_id: (t.node as unknown as { id?: string }).id ?? null,
-      bbox: [b.x, b.y, b.width, b.height],
+      bbox,
       text,
       visible: t.node.opacity > 0,
       editable: true,
@@ -438,140 +458,15 @@ async function replaceImageNode(nodeId: string, blob: Blob): Promise<DocumentSta
   return readDocumentState();
 }
 
-function colorToHex(c: Color | undefined): string | null {
-  if (!c) return null;
-  const h = (v: number) => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, "0");
-  return `#${h(c.red)}${h(c.green)}${h(c.blue)}`;
-}
-
-function detectKind(n: VisualNode): string {
-  const anyNode = n as unknown as Record<string, unknown>;
-  if (anyNode.fullContent !== undefined) return "text";
-  if (anyNode.mediaRectangle !== undefined) return "image";
-  return "rectangle";
-}
-
-/**
- * Read the user's CURRENT page into a DesignSpec: every top-level element
- * becomes a node with a stable id (persisted in node.addOnData so later
- * patches bind to the right element). Unreadable properties stay null and
- * are labeled unsupported — never guessed.
- */
-async function importCurrentDesign(): Promise<{ state: DocumentState; spec: DesignSpec }> {
-  const parent = editor.context.insertionParent as unknown as {
-    children: Iterable<VisualNode>;
-    width?: number;
-    height?: number;
-  };
-  const nodes: Array<{
-    id: string; type: "rectangle" | "text" | "image"; role: string;
-    bbox: [number, number, number, number];
-    fill?: string | null; text?: string | null; font_size?: number | null;
-    expendable: boolean;
-  }> = [];
-  let i = 0;
-  for (const child of parent.children as Iterable<VisualNode>) {
-    i += 1;
-    let id = child.addOnData.getItem(NODE_ID_KEY);
-    if (!id) {
-      id = `node_${i}`;
-      child.addOnData.setItem(NODE_ID_KEY, id);
-    }
-    const kind = detectKind(child);
-    recordKind(child, kind);
-    const b = child.boundsInParent;
-    let text: string | null = null;
-    let fontSize: number | null = null;
-    if (kind === "text") {
-      try {
-        text = (child as unknown as StandaloneTextNode).fullContent.text;
-      } catch {
-        text = null; // unreadable -> honest null
-      }
-      try {
-        const model = (child as unknown as StandaloneTextNode).fullContent as unknown as {
-          getCharacterStyles?: () => Array<{ fontSize?: number }>;
-        };
-        const ranges = model.getCharacterStyles?.() ?? [];
-        fontSize = ranges.length && ranges[0].fontSize ? ranges[0].fontSize : null;
-      } catch {
-        fontSize = null;
-      }
-    }
-    let fill: string | null = null;
-    try {
-      const f = (child as unknown as { fill?: { color?: Color } }).fill;
-      fill = colorToHex(f?.color);
-    } catch {
-      fill = null;
-    }
-    nodes.push({
-      id,
-      type: kind === "text" ? "text" : kind === "image" ? "image" : "rectangle",
-      role: "decoration", // backend re-infers roles; neutral default
-      bbox: [b.x, b.y, b.width, b.height],
-      fill,
-      text,
-      font_size: fontSize,
-      expendable: false,
-    });
-  }
-  const spec = {
-    design_id: `imported-${Date.now()}`,
-    version: 1,
-    canvas: { width: parent.width ?? 1080, height: parent.height ?? 1080 },
-    nodes,
-  } as unknown as DesignSpec;
+/** Read all content from the current artboard, including nested groups. */
+function importCurrentDesign(): { state: DocumentState; spec: DesignSpec } {
+  const { spec, unsupported } = extractCurrentPage();
   const root = pageRoot();
   root.addOnData.setItem(DESIGN_ID_KEY, spec.design_id);
   root.addOnData.setItem(VERSION_KEY, String(spec.version));
-  return { state: readDocumentState(), spec };
-}
-
-/**
- * Insert imported web images as native image nodes, laid out in a grid below
- * existing content. Each node gets a stable id (webimg_<n>) via addOnData so
- * later repairs can reference it.
- */
-async function insertImageNodes(
-  items: Array<{ name: string; dataB64: string; backgroundRemoved?: boolean }>
-): Promise<DocumentState> {
-  const CELL = 280;
-  const GAP = 24;
-  const COLS = 3;
-  const parent = editor.context.insertionParent;
-
-  // find the lowest existing tracked node to place the grid below it
-  let startY = 64;
-  const tracked = collectTracked();
-  for (const t of tracked.values()) {
-    const b = t.node.boundsInParent;
-    startY = Math.max(startY, b.y + b.height + 40);
-  }
-
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    const binary = atob(item.dataB64);
-    const bytes = new Uint8Array(binary.length);
-    for (let j = 0; j < binary.length; j++) bytes[j] = binary.charCodeAt(j);
-    const blob = new Blob([bytes as unknown as BlobPart], { type: "image/png" });
-    const bitmap = await editor.loadBitmapImage(blob);
-
-    const col = i % COLS;
-    const row = Math.floor(i / COLS);
-    const cellX = 64 + col * (CELL + GAP);
-    const cellY = startY + row * (CELL + GAP);
-
-    const nodeId = `webimg_${Date.now() % 100000}_${i + 1}`;
-    const image: MediaContainerNode = editor.createImageContainer(bitmap, {
-      initialSize: { width: CELL, height: CELL },
-    });
-    parent.children.append(image as unknown as never);
-    image.setPositionInParent({ x: cellX, y: cellY }, { x: 0, y: 0 });
-    image.addOnData.setItem(NODE_ID_KEY, nodeId);
-    recordKind(image as unknown as VisualNode, "image");
-  }
-  return readDocumentState();
+  const state = readDocumentState();
+  state.unsupported_properties = unsupported;
+  return { state, spec };
 }
 
 async function verifyAppliedPatch(candidate: CandidateResult): Promise<PostApplyReport> {
@@ -582,6 +477,10 @@ async function verifyAppliedPatch(candidate: CandidateResult): Promise<PostApply
 // ---------------------------------------------------------------------------
 
 addOnSandboxSdk.instance.runtime.exposeApi({
+  insertPdfPages,
+  selectAllPageElements,
+  capturePreviewAssets,
+  createConceptPage,
   applyDesign,
   applyRepairPatch,
   importCurrentDesign,

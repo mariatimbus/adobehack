@@ -39,6 +39,7 @@ declare module "express-document-sdk" {
     width: number;
   }
   export interface CharacterStylesInput {
+    font?: AvailableFont;
     fontSize?: number;
     color?: Color;
     letterSpacing?: number;
@@ -52,10 +53,21 @@ declare module "express-document-sdk" {
     keys(): string[];
   }
   export class BaseNode {
+    removeFromParent(): void;
     get id(): string;
     get addOnData(): AddOnData;
+    get parent(): BaseNode | undefined;
+    get type(): string;
   }
   export class VisualNode extends BaseNode {
+    cloneInPlace(): VisualNode;
+    resize(options: {width: number; behavior: 'proportional'; avoidScalingVisualDetailsIfPossible: boolean; height?: number}): void;
+    createRendition(options?: { scale?: number }): Promise<{ blob?: Blob }>;
+    get allChildren(): Readonly<Iterable<VisualNode>>;
+    get visualRoot(): VisualNode;
+    get boundsLocal(): Readonly<Rect>;
+    boundsInNode(target: VisualNode): Readonly<Rect>;
+    localPointInNode(point: Point, target: VisualNode): Readonly<Point>;
     get boundsInParent(): Readonly<Rect>;
     get translation(): Readonly<Point>;
     set translation(value: Point);
@@ -66,6 +78,8 @@ declare module "express-document-sdk" {
     get allDescendants(): Readonly<Iterable<BaseNode>>;
   }
   export class FillableNode extends VisualNode {
+    stroke: unknown;
+    fillRule: unknown;
     get fill(): Fill | undefined;
     set fill(fill: Fill | undefined);
   }
@@ -74,12 +88,15 @@ declare module "express-document-sdk" {
     height: number;
   }
   export class TextContentModel {
+    applyParagraphStyles(styles: {spaceBefore?: number; spaceAfter?: number; lineSpacing?: number}): void;
+    get characterStyleRanges(): ReadonlyArray<{ fontSize: number; color: Color }>;
     get text(): string;
     set text(value: string);
     applyCharacterStyles(styles: CharacterStylesInput, range?: unknown): void;
     getCharacterStyles(range?: unknown): Array<{ fontSize?: number; color?: Color }>;
   }
   export class StandaloneTextNode extends VisualNode {
+    textAlignment: string | number;
     get fullContent(): TextContentModel;
     set layout(layout: AutoHeightTextLayout);
     width: number;
@@ -96,10 +113,26 @@ declare module "express-document-sdk" {
       readonly length: number;
     };
   }
+  export class ArtboardNode extends VisualNode implements ContainerNode {
+    readonly width: number;
+    readonly height: number;
+    readonly children: ContainerNode["children"];
+  }
+  export class PageNode extends BaseNode {
+    cloneInPlace(): PageNode;
+    name: string;
+    width: number;
+    height: number;
+    readonly artboards: Iterable<ArtboardNode>;
+  }
   export class Editor {
+    createPath(data: string): FillableNode;
+    makeStroke(options: {color: Color; width:number}): unknown;
+    readonly documentRoot: { pages: { [Symbol.iterator](): Iterator<PageNode>; addPage(geometry: { width: number; height: number }): PageNode; remove(page: PageNode): void } };
     get context(): {
       insertionParent: ContainerNode;
-      selection: ReadonlyArray<BaseNode>;
+      currentPage: PageNode;
+      selection: BaseNode[];
     };
     createRectangle(): RectangleNode;
     createText(textContent: string): StandaloneTextNode;
@@ -114,9 +147,17 @@ declare module "express-document-sdk" {
       asyncLambda: () => Promise<T>,
       afterAsyncCallback: (result: T) => void
     ): Promise<void>;
+    visitPages(pages: PageNode[], callback: (page: PageNode) => void | Promise<void>): Promise<void>;
   }
   export const editor: Editor;
-  export const constants: { TextLayout: typeof TextLayout };
+  export interface AvailableFont { readonly family: string; readonly postscriptName: string }
+  export const fonts: { fromPostscriptName(name: string): Promise<AvailableFont | undefined> };
+  export const constants: {
+    FillRule: {evenOdd: unknown; nonZero: unknown};
+    TextAlignment: {left: string | number};
+    TextLayout: typeof TextLayout;
+    SceneNodeType: Record<"group" | "gridLayout" | "gridCell" | "mediaContainer" | "imageRectangle" | "text" | "rectangle", string>;
+  };
 }
 
 declare module "add-on-sdk-document-sandbox" {

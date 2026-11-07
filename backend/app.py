@@ -331,6 +331,28 @@ class WebImportRequest(BaseModel):
     model: str = "u2net"
 
 
+@app.get("/api/v1/import/pinterest-pdf")
+def pinterest_pdf_route() -> dict:
+    """The user-supplied local Pinterest PDF, not a remote board screenshot."""
+    from .services.pdfimport import DEFAULT_PINTEREST_PDF, extract_pdf
+    if not DEFAULT_PINTEREST_PDF.is_file():
+        raise HTTPException(404, "pinterest.pdf is unavailable. Upload the PDF in Import elements.")
+    return extract_pdf(DEFAULT_PINTEREST_PDF.read_bytes(), "pinterest.pdf")
+
+
+@app.post("/api/v1/import/pdf")
+async def pdf_import_route(file: UploadFile = File(...)) -> dict:
+    from .services.pdfimport import MAX_PDF_BYTES, extract_pdf
+    data = await file.read(MAX_PDF_BYTES + 1)
+    try:
+        return extract_pdf(data, file.filename or "pinterest.pdf")
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
+    except Exception as error:
+        log.exception("PDF extraction failed")
+        raise HTTPException(422, "This PDF could not be extracted. Export an unlocked PDF and try again.") from error
+
+
 @app.post("/api/v1/import/url")
 def web_import_route(req: WebImportRequest) -> dict:
     """Fetch every image from a public Pinterest board/pin or web page.

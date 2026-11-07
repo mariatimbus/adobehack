@@ -37,6 +37,15 @@ ROLE_HINTS = {
 
 @dataclass
 class BrandGuidelines:
+    name: str = "Custom brand"
+    wordmark: str = ""
+    tagline: str = ""
+    colors: list[dict] = field(default_factory=list)
+    typography: dict[str, dict] = field(default_factory=dict)
+    sample_copy: dict[str, str] = field(default_factory=dict)
+    visual_rules: list[str] = field(default_factory=list)
+    copy_rules: list[str] = field(default_factory=list)
+    tone: str = ""
     palette: list[str] = field(default_factory=list)
     fonts: list[str] = field(default_factory=list)
     min_font_size: dict[str, float] = field(default_factory=dict)
@@ -53,6 +62,37 @@ class BrandGuidelines:
 def parse_brand_guidelines(text: str) -> BrandGuidelines:
     g = BrandGuidelines()
     low = text.lower()
+    title = re.search(r"^#\s+(.+?)(?:\s+[—–-]\s+Brand Guidelines|\s+Brand Guidelines)\s*$", text, re.M | re.I)
+    if title:
+        g.name = title.group(1).strip()
+    logo = re.search(r"Primary logo:\s*([^\n]+)", text, re.I)
+    mark = re.search(r"`([^`]+)`", logo.group(1)) if logo else None
+    g.wordmark = mark.group(1) if mark else g.name
+    tagline = re.search(r"\*\*Tagline:\*\*\s*(.+)", text)
+    if tagline:
+        g.tagline = tagline.group(1).strip(" *")
+    # Markdown tables are read by column, so usage survives alongside each HEX.
+    for line in text.splitlines():
+        cells = [c.strip().strip("`*") for c in line.strip().strip("|").split("|")]
+        if len(cells) >= 4 and re.fullmatch(r"#[0-9a-fA-F]{6}", cells[2]):
+            g.colors.append(dict(role=cells[0], name=cells[1], hex=cells[2].lower(), usage=cells[3]))
+    for role, pattern in [("headline", "Headlines"), ("body", "Body/UI")]:
+        m = re.search(r"\*\*" + re.escape(pattern) + r":\*\*\s*([^\n]+)", text)
+        if m:
+            value = m.group(1)
+            family = value.split(",")[0].split("(")[0].strip().rstrip(".")
+            fallback = re.search(r"fallback:\s*([^\)]+)", value)
+            g.typography[role] = {"family": family, "fallback": fallback.group(1).strip() if fallback else "Arial"}
+    for label, key in [("Hero headline", "headline"), ("Supporting text", "body"), ("CTA", "cta")]:
+        m = re.search(r"\*\*" + label + r":\*\*\s*([^\n]+)", text)
+        if m:
+            g.sample_copy[key] = m.group(1).strip()
+    for heading, target in [("Copy rules", g.copy_rules), ("Photography", g.visual_rules), ("Photography and illustration", g.visual_rules), ("Graphic elements", g.visual_rules), ("Color rules", g.visual_rules)]:
+        section = re.search(r"^### " + re.escape(heading) + r"\s*\n(.*?)(?=^#{1,3} |\Z)", text, re.M | re.S)
+        if section:
+            target.extend(line.strip().lstrip("- ") for line in section.group(1).splitlines() if line.strip())
+    tone = re.search(r"### Tone of voice\s*\n\s*([^\n]+)", text)
+    g.tone = tone.group(1).strip() if tone else ""
 
     seen: set[str] = set()
     for m in _HEX_RE.finditer(text):
@@ -67,6 +107,10 @@ def parse_brand_guidelines(text: str) -> BrandGuidelines:
         name = _FONT_SUFFIX_RE.sub("", m.group(1).strip().strip("\"'"))
         if name and name.lower() not in {f.lower() for f in g.fonts}:
             g.fonts.append(name)
+    for style in g.typography.values():
+        for name in [style["family"], style["fallback"]]:
+            if name.lower() not in {f.lower() for f in g.fonts}:
+                g.fonts.append(name)
 
     for m in _MIN_FONT_RE.finditer(low):
         px = float(m.group(1)) * (1.333 if "pt" in m.group(0) or "point" in m.group(0) else 1.0)
@@ -85,11 +129,20 @@ def parse_brand_guidelines(text: str) -> BrandGuidelines:
 
     for m in _FORBIDDEN_LEAD_RE.finditer(text):
         payload = m.group(1).strip().strip(".")
+        if "|" in payload:
+            continue  # A channel-table's Avoid column is not forbidden copy.
         # split compound sections: "Forbidden: X. Prohibited: Y" -> X, Y
         for frag in re.split(r"\.\s+|\n|;\s*(?=(?:prohibited|forbidden|never|avoid|banned|do not)\b)", payload, flags=re.I):
             frag = re.sub(r"^(?:prohibited|forbidden|never say|do not say|banned|avoid)\s*[:\-]?\s*", "", frag, flags=re.I).strip().strip(".")
             if 0 < len(frag) < 120 and frag.lower() not in {p.lower() for p in g.forbidden_phrases}:
                 g.forbidden_phrases.append(frag)
+    # Quoted phrases in explicit negative copy rules are exact-copy checks.
+    for line in g.copy_rules:
+        if re.search(r"\b(?:never|avoid|no |do not)\b", line, re.I):
+            for phrase in re.findall(r'"([^"\n]+)"', line):
+                phrase = phrase.strip(" ,.;")
+                if phrase.lower() not in {p.lower() for p in g.forbidden_phrases}:
+                    g.forbidden_phrases.append(phrase)
 
     g.notes.append(
         "Extracted by deterministic rules, not AI; review before relying on it.")

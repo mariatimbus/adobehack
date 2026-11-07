@@ -9,7 +9,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "adobe:prepare": "npm run build && rm -rf adobe-src && mkdir -p adobe-src && cp manifest.json adobe-src/ && cp -r dist/ui adobe-src/ui && mkdir -p adobe-src/sandbox && cp dist/sandbox/code.js adobe-src/sandbox/code.js",
-    "adobe:start": "npm run adobe:prepare && ccweb-add-on-scripts start --src adobe-src --port 5241 --analytics off"
+    "adobe:start": "npm run adobe:prepare && node scripts/adobe-dev.mjs --src adobe-src --port 5241 --analytics off"
   },
   "dependencies": {
     "react": "^18.3.1",

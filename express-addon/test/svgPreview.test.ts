@@ -30,11 +30,22 @@ describe("specToSvg", () => {
     expect(svg).toContain("#f4efe8");
   });
 
-  it("renders hidden nodes as dashed markers so pruning is visible", () => {
+  it("does not draw hidden elements over the final artwork", () => {
     const hidden: DesignSpec = JSON.parse(JSON.stringify(spec));
     hidden.nodes[1].bbox = [520, 120, 0, 0];
     const svg = specToSvg(hidden);
-    expect(svg).toContain("stroke-dasharray");
+    expect(svg).not.toContain('fill="#d9cfc3"');
+    expect(svg).not.toContain("stroke-dasharray");
+  });
+  it("uses real artwork and does not inflate text sizes", () => {
+    const svg = specToSvg({ ...spec, nodes: [...spec.nodes, { id: "hero", type: "image", role: "product", bbox: [500, 200, 300, 600], asset_id: "photo" }] }, { assets: { photo: "./alphaz-hero.png" } });
+    expect(svg).toContain('href="./alphaz-hero.png"');
+    expect(svg).toContain('font-size="36"');
+    expect(svg).not.toContain("📷");
+  });
+  it("gives every inline preview its own clipping ids", () => {
+    const a = specToSvg(spec), b = specToSvg(spec);
+    expect(a.match(/clipPath id="([^"]+)/)?.[1]).not.toBe(b.match(/clipPath id="([^"]+)/)?.[1]);
   });
 });
 
