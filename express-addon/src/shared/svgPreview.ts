@@ -40,14 +40,21 @@ export function specToSvg(
     const stroke = highlight.has(node.id) ? ` stroke="#1473e6" stroke-width="6"` : "";
     if (node.type === "text") {
       const fill = node.color ?? "#242424";
-      const fs = (node.font_size ?? 24) * 1.35; // display bump for legibility
+      const fs = (node.font_size ?? 24) * 1.25; // display bump for legibility
       const lines = wrapLabel(node.text ?? "", Math.max(8, Math.floor(w / (fs * 0.52))));
+      const maxLines = Math.max(1, Math.floor(h / (fs * 1.12))); // clip to the node's own box
+      const shown = lines.slice(0, maxLines);
       parts.push(`<g${stroke ? stroke.replace("stroke-width=\"6\"", 'stroke="none" data-hl="1"') : ""}>`);
-      lines.forEach((line, i) => {
+      shown.forEach((line, i) => {
         parts.push(
           `<text x="${x}" y="${y + fs * (i + 1)}" font-family="Helvetica, Arial, sans-serif" font-size="${fs}" fill="${fill}">${esc(line)}</text>`
         );
       });
+      if (lines.length > maxLines) {
+        parts.push(
+          `<text x="${x + w - 14}" y="${y + fs * maxLines}" font-family="Helvetica, Arial, sans-serif" font-size="${fs}" fill="${fill}" text-anchor="end">…</text>`
+        );
+      }
       parts.push(`</g>`);
       if (highlight.has(node.id)) {
         parts.push(`<rect x="${x - 4}" y="${y - 4}" width="${w + 8}" height="${h + 8}" fill="none" stroke="#1473e6" stroke-width="5"/>`);

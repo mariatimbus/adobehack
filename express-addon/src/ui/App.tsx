@@ -8,6 +8,7 @@ import type {
   PostApplyReport,
 } from "../shared/contracts";
 import { candidateCards } from "../shared/svgPreview";
+import { applyOperations, diffPlannedObserved } from "../shared/opApplier";
 import { backendBase, fetchCandidates, fetchDemoDesign } from "./api";
 
 type Stage = "load" | "intent" | "constraint" | "compare" | "apply" | "verify";
@@ -17,6 +18,84 @@ interface SandboxApi {
   applyRepairPatch: (candidate: CandidateResult) => Promise<PostApplyReport>;
   readDocumentState: () => Promise<DocumentState>;
   verifyAppliedPatch: (candidate: CandidateResult) => Promise<PostApplyReport>;
+}
+
+/**
+ * DEV HARNESS ONLY (?harness=1): an in-memory stand-in for the Adobe document
+ * sandbox so the panel can be developed/screenshotted outside Adobe Express.
+ * It is NOT the Adobe integration — the real bridge is src/sandbox/code.ts.
+ */
+function makeHarnessSandbox(getSpec: () => DesignSpec | null, setSpec: (s: DesignSpec) => void): SandboxApi {
+  const stateOf = (spec: DesignSpec): DocumentState => ({
+    design_id: spec.design_id,
+    version: spec.version,
+    canvas: spec.canvas,
+    bindings: spec.nodes.map((n) => ({
+      node_id: n.id,
+      adobe_node_id: `harness-${n.id}`,
+      type: n.type,
+      editable: true,
+    })),
+    node_count: spec.nodes.length,
+    unsupported_properties: ["canvas_size", "font_size_readback"],
+  });
+  return {
+    async applyDesign(spec) {
+      setSpec(JSON.parse(JSON.stringify(spec)));
+      return stateOf(spec);
+    },
+    async applyRepairPatch(candidate) {
+      const t0 = performance.now();
+      const current = getSpec();
+      if (!current) throw new Error("no design loaded");
+      const patched = applyOperations(current, candidate.operations);
+      patched.version = candidate.base_version + 1;
+      setSpec(patched);
+      const planned = candidate.resulting_spec.nodes.map((n) => ({
+        node_id: n.id,
+        bbox: n.bbox,
+        text: n.text ?? null,
+        visible: n.bbox[2] > 0 && n.bbox[3] > 0,
+      }));
+      const observed = patched.nodes.map((n) => ({
+        node_id: n.id,
+        bbox: n.bbox,
+        text: n.text ?? null,
+        visible: n.bbox[2] > 0 && n.bbox[3] > 0,
+        observed: true,
+      }));
+      const diffs = diffPlannedObserved(
+        planned as Array<{ node_id: string } & Record<string, unknown>>,
+        observed as Array<{ node_id: string; observed: boolean } & Record<string, unknown>>
+      );
+      return {
+        design_id: patched.design_id,
+        base_version: candidate.base_version,
+        resulting_version: patched.version,
+        candidate_id: candidate.candidate_id,
+        planned: planned.map((p) => ({ ...p, observed: true })),
+        observed,
+        matched: planned.length - diffs.length,
+        mismatched: [...new Set(diffs.map((d) => d.node_id))],
+        unsupported_measurements: ["font_size_readback", "canvas_size"],
+        node_count_before: current.nodes.length,
+        node_count_after: patched.nodes.length,
+        editability_retained: true,
+        constraint_violations: diffs.map((d) => `${d.node_id}.${d.field}`),
+        apply_duration_ms: performance.now() - t0,
+        recovered: null,
+        status: diffs.length ? "partial_failure" : "verified_with_gaps",
+      };
+    },
+    async readDocumentState() {
+      const spec = getSpec();
+      if (!spec) throw new Error("no design loaded");
+      return stateOf(spec);
+    },
+    async verifyAppliedPatch(candidate) {
+      return this.applyRepairPatch(candidate);
+    },
+  };
 }
 
 const STAGES: Array<{ id: Stage; label: string }> = [
@@ -45,18 +124,35 @@ export default function App() {
   const [picked, setPicked] = useState<string | null>(null);
   const [report, setReport] = useState<PostApplyReport | null>(null);
   const [busy, setBusy] = useState(false);
+  const specRef = React.useRef<DesignSpec | null>(null);
+
+  const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
+  const harness = urlParams.get("harness") === "1";
 
   useEffect(() => {
+    if (harness) {
+      setSandbox(() =>
+        makeHarnessSandbox(
+          () => specRef.current,
+          (s) => {
+            specRef.current = s;
+            setSpec(s);
+          }
+        )
+      );
+      return;
+    }
     (async () => {
       try {
         await window.addOnUISdk!.ready;
         const proxy = await window.addOnUISdk!.runtime.apiProxy<SandboxApi>("documentSandbox");
         setSandbox(() => proxy);
       } catch (e) {
-        setError(`Adobe SDK init failed: ${e}. Panel must run inside Adobe Express.`);
+        setError(`Adobe SDK init failed: ${e}. Panel must run inside Adobe Express (or use ?harness=1 for UI development).`);
       }
     })();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [harness]);
 
   const currentTexts = useMemo(() => {
     const out: Record<string, string> = {};
@@ -77,6 +173,7 @@ export default function App() {
         heroBlob = undefined; // asset unavailable -> disclosed placeholder path
       }
       const state = await sandbox!.applyDesign(demo.spec as DesignSpec, heroBlob);
+      specRef.current = demo.spec as DesignSpec;
       setSpec(demo.spec as DesignSpec);
       setIntent(demo.intent as DesignIntentGraph);
       setDocState(state);
@@ -145,6 +242,12 @@ export default function App() {
       </div>
 
       {error && <div className="banner">{error}</div>}
+      {harness && (
+        <div className="banner">
+          DEV HARNESS — in-memory stand-in for the Adobe sandbox, for UI development outside
+          Adobe Express. This is not the Adobe integration.
+        </div>
+      )}
 
       {stage === "load" && (
         <section>
