@@ -528,6 +528,52 @@ async function importCurrentDesign(): Promise<{ state: DocumentState; spec: Desi
   return { state: readDocumentState(), spec };
 }
 
+/**
+ * Insert imported web images as native image nodes, laid out in a grid below
+ * existing content. Each node gets a stable id (webimg_<n>) via addOnData so
+ * later repairs can reference it.
+ */
+async function insertImageNodes(
+  items: Array<{ name: string; dataB64: string; backgroundRemoved?: boolean }>
+): Promise<DocumentState> {
+  const CELL = 280;
+  const GAP = 24;
+  const COLS = 3;
+  const parent = editor.context.insertionParent;
+
+  // find the lowest existing tracked node to place the grid below it
+  let startY = 64;
+  const tracked = collectTracked();
+  for (const t of tracked.values()) {
+    const b = t.node.boundsInParent;
+    startY = Math.max(startY, b.y + b.height + 40);
+  }
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const binary = atob(item.dataB64);
+    const bytes = new Uint8Array(binary.length);
+    for (let j = 0; j < binary.length; j++) bytes[j] = binary.charCodeAt(j);
+    const blob = new Blob([bytes as unknown as BlobPart], { type: "image/png" });
+    const bitmap = await editor.loadBitmapImage(blob);
+
+    const col = i % COLS;
+    const row = Math.floor(i / COLS);
+    const cellX = 64 + col * (CELL + GAP);
+    const cellY = startY + row * (CELL + GAP);
+
+    const nodeId = `webimg_${Date.now() % 100000}_${i + 1}`;
+    const image: MediaContainerNode = editor.createImageContainer(bitmap, {
+      initialSize: { width: CELL, height: CELL },
+    });
+    parent.children.append(image as unknown as never);
+    image.setPositionInParent({ x: cellX, y: cellY }, { x: 0, y: 0 });
+    image.addOnData.setItem(NODE_ID_KEY, nodeId);
+    recordKind(image as unknown as VisualNode, "image");
+  }
+  return readDocumentState();
+}
+
 async function verifyAppliedPatch(candidate: CandidateResult): Promise<PostApplyReport> {
   const before = readDocumentState();
   return verifyAgainstPlan(candidate, before, before, 0);
@@ -539,6 +585,7 @@ addOnSandboxSdk.instance.runtime.exposeApi({
   applyDesign,
   applyRepairPatch,
   importCurrentDesign,
+  insertImageNodes,
   readDocumentState,
   replaceImageNode,
   verifyAppliedPatch,

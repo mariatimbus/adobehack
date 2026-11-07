@@ -1,7 +1,7 @@
-import S from "add-on-sdk-document-sandbox";
+import z from "add-on-sdk-document-sandbox";
 import { editor as p } from "express-document-sdk";
-const b = "creativedna.node_id", I = "creativedna.design_id", x = "creativedna.version";
-function k(e) {
+const m = "creativedna.node_id", C = "creativedna.design_id", v = "creativedna.version";
+function P(e) {
   const t = e.replace("#", "");
   return {
     red: parseInt(t.slice(0, 2), 16) / 255,
@@ -10,79 +10,79 @@ function k(e) {
     alpha: 1
   };
 }
-function w() {
-  const e = /* @__PURE__ */ new Map(), t = p.context.insertionParent, n = (o) => {
+function x() {
+  const e = /* @__PURE__ */ new Map(), t = p.context.insertionParent, o = (i) => {
     var d;
-    for (const i of o) {
-      const s = (d = i.addOnData) == null ? void 0 : d.getItem(b);
+    for (const n of i) {
+      const s = (d = n.addOnData) == null ? void 0 : d.getItem(m);
       if (s) {
-        const l = i.addOnData.getItem("creativedna.kind") ?? "rectangle";
-        e.set(s, { node: i, kind: l });
+        const l = n.addOnData.getItem("creativedna.kind") ?? "rectangle";
+        e.set(s, { node: n, kind: l });
       }
-      const c = i.children;
-      c && n(c);
+      const c = n.children;
+      c && o(c);
     }
   };
-  return n(t.children), e;
+  return o(t.children), e;
 }
 function y(e, t) {
   e.addOnData.setItem("creativedna.kind", t);
 }
-function v() {
+function w() {
   return p.context.insertionParent;
 }
-async function O(e, t) {
-  const n = p.context.insertionParent, o = w();
-  if (o.size >= e.nodes.length && [...o.keys()].every((i) => e.nodes.some((s) => s.id === i)))
-    return m();
-  for (const i of e.nodes) {
-    if (o.has(i.id)) continue;
-    const [s, c, l, u] = i.bbox;
-    if (i.type === "rectangle") {
+async function E(e, t) {
+  const o = p.context.insertionParent, i = x();
+  if (i.size >= e.nodes.length && [...i.keys()].every((n) => e.nodes.some((s) => s.id === n)))
+    return b();
+  for (const n of e.nodes) {
+    if (i.has(n.id)) continue;
+    const [s, c, l, u] = n.bbox;
+    if (n.type === "rectangle") {
       const a = p.createRectangle();
-      a.width = l, a.height = u, i.fill && (a.fill = p.makeColorFill(k(i.fill))), n.children.append(a), a.setPositionInParent({ x: s, y: c }, { x: 0, y: 0 }), a.addOnData.setItem(b, i.id), y(a, "rectangle");
-    } else if (i.type === "text") {
-      const a = p.createText(i.text ?? "");
-      a.layout = { type: 2, width: l }, i.font_size && a.fullContent.applyCharacterStyles({ fontSize: i.font_size }), i.color && a.fullContent.applyCharacterStyles({ color: k(i.color) }), n.children.append(a), a.setPositionInParent({ x: s, y: c }, { x: 0, y: 0 }), a.addOnData.setItem(b, i.id), y(a, "text");
-    } else if (i.type === "image")
+      a.width = l, a.height = u, n.fill && (a.fill = p.makeColorFill(P(n.fill))), o.children.append(a), a.setPositionInParent({ x: s, y: c }, { x: 0, y: 0 }), a.addOnData.setItem(m, n.id), y(a, "rectangle");
+    } else if (n.type === "text") {
+      const a = p.createText(n.text ?? "");
+      a.layout = { type: 2, width: l }, n.font_size && a.fullContent.applyCharacterStyles({ fontSize: n.font_size }), n.color && a.fullContent.applyCharacterStyles({ color: P(n.color) }), o.children.append(a), a.setPositionInParent({ x: s, y: c }, { x: 0, y: 0 }), a.addOnData.setItem(m, n.id), y(a, "text");
+    } else if (n.type === "image")
       if (t) {
         const a = await p.loadBitmapImage(t), h = p.createImageContainer(a, {
           initialSize: { width: l, height: u }
         });
-        n.children.append(h), h.setPositionInParent({ x: s, y: c }, { x: 0, y: 0 }), h.addOnData.setItem(b, i.id), y(h, "image");
+        o.children.append(h), h.setPositionInParent({ x: s, y: c }, { x: 0, y: 0 }), h.addOnData.setItem(m, n.id), y(h, "image");
       } else {
         const a = p.createRectangle();
-        a.width = l, a.height = u, a.fill = p.makeColorFill(k("#dfe7dd")), n.children.append(a), a.setPositionInParent({ x: s, y: c }, { x: 0, y: 0 }), a.addOnData.setItem(b, i.id), y(a, "image_placeholder");
+        a.width = l, a.height = u, a.fill = p.makeColorFill(P("#dfe7dd")), o.children.append(a), a.setPositionInParent({ x: s, y: c }, { x: 0, y: 0 }), a.addOnData.setItem(m, n.id), y(a, "image_placeholder");
       }
   }
-  const d = v();
-  return d.addOnData.setItem(I, e.design_id), d.addOnData.setItem(x, String(e.version)), m();
+  const d = w();
+  return d.addOnData.setItem(C, e.design_id), d.addOnData.setItem(v, String(e.version)), b();
 }
-function P(e) {
+function L(e) {
   const t = {
     translation: { ...e.node.translation },
     opacity: e.node.opacity
   };
   if (e.kind === "text") {
-    const o = e.node;
-    t.text = o.fullContent.text;
+    const i = e.node;
+    t.text = i.fullContent.text;
   }
-  const n = e.node;
-  return typeof n.width == "number" && (t.width = n.width), typeof n.height == "number" && (t.height = n.height), t;
+  const o = e.node;
+  return typeof o.width == "number" && (t.width = o.width), typeof o.height == "number" && (t.height = o.height), t;
 }
-function C(e, t) {
+function N(e, t) {
   t.translation && (e.node.translation = t.translation), typeof t.opacity == "number" && (e.node.opacity = t.opacity), e.kind === "text" && typeof t.text == "string" && (e.node.fullContent.text = t.text);
-  const n = e.node;
-  typeof t.width == "number" && typeof n.width == "number" && (n.width = t.width), typeof t.height == "number" && typeof n.height == "number" && (n.height = t.height);
+  const o = e.node;
+  typeof t.width == "number" && typeof o.width == "number" && (o.width = t.width), typeof t.height == "number" && typeof o.height == "number" && (o.height = t.height);
 }
-function z(e, t) {
+function $(e, t) {
   switch (t.op) {
     case "set_text":
       e.node.fullContent.text = String(t.value);
       break;
     case "set_bbox": {
-      const [n, o, d, i] = t.value, s = e.node;
-      typeof s.width == "number" && (s.width = d), typeof s.height == "number" && (s.height = i), e.node.translation = { x: n, y: o };
+      const [o, i, d, n] = t.value, s = e.node;
+      typeof s.width == "number" && (s.width = d), typeof s.height == "number" && (s.height = n), e.node.translation = { x: o, y: i };
       break;
     }
     case "set_font_size":
@@ -94,17 +94,17 @@ function z(e, t) {
       e.node.opacity = t.value === !1 ? 0 : 1;
       break;
     case "translate": {
-      const n = e.node.translation;
-      e.node.translation = { x: n.x + t.value[0], y: n.y + t.value[1] };
+      const o = e.node.translation;
+      e.node.translation = { x: o.x + t.value[0], y: o.y + t.value[1] };
       break;
     }
   }
 }
-async function N(e) {
-  const t = Date.now(), n = w(), o = m(), d = Number(v().addOnData.getItem(x) ?? o.version);
+async function M(e) {
+  const t = Date.now(), o = x(), i = b(), d = Number(w().addOnData.getItem(v) ?? i.version);
   if (e.base_version !== d)
     return {
-      design_id: o.design_id,
+      design_id: i.design_id,
       base_version: e.base_version,
       resulting_version: null,
       candidate_id: e.candidate_id,
@@ -113,7 +113,7 @@ async function N(e) {
       matched: 0,
       mismatched: [],
       unsupported_measurements: ["patch rejected before application"],
-      node_count_before: o.node_count,
+      node_count_before: i.node_count,
       node_count_after: null,
       editability_retained: null,
       constraint_violations: ["VERSION_MISMATCH"],
@@ -121,51 +121,51 @@ async function N(e) {
       recovered: null,
       status: "failed"
     };
-  const i = /* @__PURE__ */ new Map(), s = [], c = [];
+  const n = /* @__PURE__ */ new Map(), s = [], c = [];
   for (const r of e.operations) {
-    const f = n.get(r.node_id);
+    const f = o.get(r.node_id);
     if (!f) {
       c.push(r.node_id);
       continue;
     }
-    i.has(r.node_id) || i.set(r.node_id, P(f)), s.push({ t: f, op: r });
+    n.has(r.node_id) || n.set(r.node_id, L(f)), s.push({ t: f, op: r });
   }
   let l = null;
   try {
-    for (const { t: r, op: f } of s) z(r, f);
+    for (const { t: r, op: f } of s) $(r, f);
   } catch (r) {
     l = String(r);
   }
   let u = null;
   if (l) {
     u = !0;
-    for (const [r, f] of i) {
-      const g = n.get(r);
+    for (const [r, f] of n) {
+      const g = o.get(r);
       if (g)
         try {
-          C(g, f);
+          N(g, f);
         } catch {
           u = !1;
         }
     }
   }
-  const a = m(), h = D(e, o, a, Date.now() - t);
-  return l && (h.status = u ? "partial_failure" : "failed", h.constraint_violations.push(`op failed: ${l}`)), h.recovered = l ? u : null, l || (v().addOnData.setItem(x, String(e.base_version + 1)), h.resulting_version = e.base_version + 1), h;
+  const a = b(), h = D(e, i, a, Date.now() - t);
+  return l && (h.status = u ? "partial_failure" : "failed", h.constraint_violations.push(`op failed: ${l}`)), h.recovered = l ? u : null, l || (w().addOnData.setItem(v, String(e.base_version + 1)), h.resulting_version = e.base_version + 1), h;
 }
-function m() {
-  const e = w(), t = [];
-  for (const [o, d] of e)
+function b() {
+  const e = x(), t = [];
+  for (const [i, d] of e)
     t.push({
-      node_id: o,
+      node_id: i,
       adobe_node_id: d.node.id ?? "unreadable",
       type: d.kind === "text" ? "text" : d.kind === "image" || d.kind === "image_placeholder" ? "image" : "rectangle",
       editable: !0
       // native nodes remain independently editable
     });
-  const n = v();
+  const o = w();
   return {
-    design_id: n.addOnData.getItem(I) ?? "unknown",
-    version: Number(n.addOnData.getItem(x) ?? 0),
+    design_id: o.addOnData.getItem(C) ?? "unknown",
+    version: Number(o.addOnData.getItem(v) ?? 0),
     canvas: { width: 0, height: 0 },
     // artboard size readback unsupported in current SDK typings
     bindings: t,
@@ -173,7 +173,7 @@ function m() {
     unsupported_properties: ["canvas_size", "font_size_readback"]
   };
 }
-function $(e) {
+function A(e) {
   return e.resulting_spec.nodes.map((t) => ({
     node_id: t.id,
     bbox: t.bbox,
@@ -182,34 +182,34 @@ function $(e) {
     observed: !0
   }));
 }
-function E() {
-  const e = w(), t = [];
-  for (const [n, o] of e) {
+function R() {
+  const e = x(), t = [];
+  for (const [o, i] of e) {
     let d = null;
-    if (o.kind === "text")
+    if (i.kind === "text")
       try {
-        d = o.node.fullContent.text;
+        d = i.node.fullContent.text;
       } catch {
         d = null;
       }
-    const i = o.node.boundsInParent;
+    const n = i.node.boundsInParent;
     t.push({
-      node_id: n,
-      adobe_node_id: o.node.id ?? null,
-      bbox: [i.x, i.y, i.width, i.height],
+      node_id: o,
+      adobe_node_id: i.node.id ?? null,
+      bbox: [n.x, n.y, n.width, n.height],
       text: d,
-      visible: o.node.opacity > 0,
+      visible: i.node.opacity > 0,
       editable: !0,
       observed: !0
     });
   }
   return t;
 }
-function D(e, t, n, o) {
-  const d = $(e), i = E(), s = 2, c = [];
+function D(e, t, o, i) {
+  const d = A(e), n = R(), s = 2, c = [];
   let l = 0;
   for (const r of d) {
-    const f = i.find((_) => _.node_id === r.node_id);
+    const f = n.find((_) => _.node_id === r.node_id);
     if (!f) {
       c.push(r.node_id);
       continue;
@@ -220,57 +220,57 @@ function D(e, t, n, o) {
         Math.abs(r.bbox[_] - f.bbox[_]) > s && (g = !1);
     r.text !== null && r.text !== void 0 && f.text !== r.text && (g = !1), r.visible !== null && r.visible !== void 0 && f.visible !== r.visible && (g = !1), g ? l++ : c.push(r.node_id);
   }
-  const u = ["font_size_readback", "canvas_size"], a = n.bindings.length >= t.bindings.length && n.bindings.every((r) => r.editable);
+  const u = ["font_size_readback", "canvas_size"], a = o.bindings.length >= t.bindings.length && o.bindings.every((r) => r.editable);
   let h = "verified";
   return u.length > 0 && (h = "verified_with_gaps"), c.length > 0 && (h = "partial_failure"), l === 0 && (h = "failed"), {
-    design_id: n.design_id,
+    design_id: o.design_id,
     base_version: e.base_version,
-    resulting_version: n.version,
+    resulting_version: o.version,
     candidate_id: e.candidate_id,
     planned: d,
-    observed: i,
+    observed: n,
     matched: l,
     mismatched: c,
     unsupported_measurements: u,
     node_count_before: t.node_count,
-    node_count_after: n.node_count,
+    node_count_after: o.node_count,
     editability_retained: a,
     constraint_violations: c.map((r) => `mismatch: ${r}`),
-    apply_duration_ms: o,
+    apply_duration_ms: i,
     recovered: null,
     status: h
   };
 }
-async function M(e, t) {
-  const o = w().get(e);
-  if (!o) throw new Error(`node '${e}' not found in document`);
-  if (o.kind === "image_placeholder" && (o.kind = "image"), o.kind !== "image" && o.kind !== "rectangle")
-    throw new Error(`node '${e}' is not replaceable with an image (kind=${o.kind})`);
-  const d = o.node, i = typeof d.width == "number" ? d.width : 420, s = typeof d.height == "number" ? d.height : 620, c = { ...o.node.translation }, l = await p.loadBitmapImage(t), u = p.createImageContainer(l, {
-    initialSize: { width: i, height: s }
+async function K(e, t) {
+  const i = x().get(e);
+  if (!i) throw new Error(`node '${e}' not found in document`);
+  if (i.kind === "image_placeholder" && (i.kind = "image"), i.kind !== "image" && i.kind !== "rectangle")
+    throw new Error(`node '${e}' is not replaceable with an image (kind=${i.kind})`);
+  const d = i.node, n = typeof d.width == "number" ? d.width : 420, s = typeof d.height == "number" ? d.height : 620, c = { ...i.node.translation }, l = await p.loadBitmapImage(t), u = p.createImageContainer(l, {
+    initialSize: { width: n, height: s }
   });
-  p.context.insertionParent.children.append(u), u.setPositionInParent(c, { x: 0, y: 0 }), u.addOnData.setItem(b, e), y(u, "image");
-  const a = o.node;
-  return typeof a.removeFromParent == "function" && a.removeFromParent(), m();
+  p.context.insertionParent.children.append(u), u.setPositionInParent(c, { x: 0, y: 0 }), u.addOnData.setItem(m, e), y(u, "image");
+  const a = i.node;
+  return typeof a.removeFromParent == "function" && a.removeFromParent(), b();
 }
-function R(e) {
+function T(e) {
   if (!e) return null;
-  const t = (n) => Math.round(Math.max(0, Math.min(1, n)) * 255).toString(16).padStart(2, "0");
+  const t = (o) => Math.round(Math.max(0, Math.min(1, o)) * 255).toString(16).padStart(2, "0");
   return `#${t(e.red)}${t(e.green)}${t(e.blue)}`;
 }
-function K(e) {
+function Y(e) {
   const t = e;
   return t.fullContent !== void 0 ? "text" : t.mediaRectangle !== void 0 ? "image" : "rectangle";
 }
-async function T() {
-  var i;
+async function B() {
+  var n;
   const e = p.context.insertionParent, t = [];
-  let n = 0;
+  let o = 0;
   for (const s of e.children) {
-    n += 1;
-    let c = s.addOnData.getItem(b);
-    c || (c = `node_${n}`, s.addOnData.setItem(b, c));
-    const l = K(s);
+    o += 1;
+    let c = s.addOnData.getItem(m);
+    c || (c = `node_${o}`, s.addOnData.setItem(m, c));
+    const l = Y(s);
     y(s, l);
     const u = s.boundsInParent;
     let a = null, h = null;
@@ -281,7 +281,7 @@ async function T() {
         a = null;
       }
       try {
-        const f = s.fullContent, g = ((i = f.getCharacterStyles) == null ? void 0 : i.call(f)) ?? [];
+        const f = s.fullContent, g = ((n = f.getCharacterStyles) == null ? void 0 : n.call(f)) ?? [];
         h = g.length && g[0].fontSize ? g[0].fontSize : null;
       } catch {
         h = null;
@@ -290,7 +290,7 @@ async function T() {
     let r = null;
     try {
       const f = s.fill;
-      r = R(f == null ? void 0 : f.color);
+      r = T(f == null ? void 0 : f.color);
     } catch {
       r = null;
     }
@@ -306,23 +306,42 @@ async function T() {
       expendable: !1
     });
   }
-  const o = {
+  const i = {
     design_id: `imported-${Date.now()}`,
     version: 1,
     canvas: { width: e.width ?? 1080, height: e.height ?? 1080 },
     nodes: t
-  }, d = v();
-  return d.addOnData.setItem(I, o.design_id), d.addOnData.setItem(x, String(o.version)), { state: m(), spec: o };
+  }, d = w();
+  return d.addOnData.setItem(C, i.design_id), d.addOnData.setItem(v, String(i.version)), { state: b(), spec: i };
 }
-async function A(e) {
-  const t = m();
+async function F(e) {
+  const d = p.context.insertionParent;
+  let n = 64;
+  const s = x();
+  for (const c of s.values()) {
+    const l = c.node.boundsInParent;
+    n = Math.max(n, l.y + l.height + 40);
+  }
+  for (let c = 0; c < e.length; c++) {
+    const l = e[c], u = atob(l.dataB64), a = new Uint8Array(u.length);
+    for (let k = 0; k < u.length; k++) a[k] = u.charCodeAt(k);
+    const h = new Blob([a], { type: "image/png" }), r = await p.loadBitmapImage(h), f = c % 3, g = Math.floor(c / 3), _ = 64 + f * 304, S = n + g * 304, O = `webimg_${Date.now() % 1e5}_${c + 1}`, I = p.createImageContainer(r, {
+      initialSize: { width: 280, height: 280 }
+    });
+    d.children.append(I), I.setPositionInParent({ x: _, y: S }, { x: 0, y: 0 }), I.addOnData.setItem(m, O), y(I, "image");
+  }
+  return b();
+}
+async function G(e) {
+  const t = b();
   return D(e, t, t, 0);
 }
-S.instance.runtime.exposeApi({
-  applyDesign: O,
-  applyRepairPatch: N,
-  importCurrentDesign: T,
-  readDocumentState: m,
-  replaceImageNode: M,
-  verifyAppliedPatch: A
+z.instance.runtime.exposeApi({
+  applyDesign: E,
+  applyRepairPatch: M,
+  importCurrentDesign: B,
+  insertImageNodes: F,
+  readDocumentState: b,
+  replaceImageNode: K,
+  verifyAppliedPatch: G
 });

@@ -320,6 +320,32 @@ async def style_references_route(files: list[UploadFile] = File(...)) -> dict:
     return {"analyses": analyses, "summary": summarize_references(analyses), "errors": errors}
 
 
+# ---------------------------------------------------------------------------
+# Web import (Pinterest boards/pins, generic pages) + local AI background removal
+# ---------------------------------------------------------------------------
+
+
+class WebImportRequest(BaseModel):
+    url: str = Field(min_length=8)
+    remove_bg: bool = False
+    model: str = "u2net"
+
+
+@app.post("/api/v1/import/url")
+def web_import_route(req: WebImportRequest) -> dict:
+    """Fetch every image from a public Pinterest board/pin or web page.
+    Optionally removes backgrounds with a LOCAL open-source model — real
+    on-device AI, labeled with the exact model name."""
+    import base64
+    from .services.webimport import import_from_url
+    result = import_from_url(req.url, remove_bg=req.remove_bg, model=req.model)
+    out = result.to_dict()
+    out["remove_bg_note"] = (
+        f"background removal: local on-device model '{req.model}' (open-source rembg) — no cloud AI"
+        if req.remove_bg else "background removal not requested")
+    return out
+
+
 @app.get("/api/v1/telemetry")
 def telemetry() -> list[dict]:
     return list(_telemetry_ring)

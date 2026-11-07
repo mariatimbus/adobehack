@@ -14,10 +14,12 @@ import {
   backendBase,
   fetchCandidates,
   fetchDemoDesign,
+  importFromUrl,
   inferRoles,
   parseBrandGuidelines,
   type BrandGuidelinesResult,
   type StyleAnalysis,
+  type WebImage,
 } from "./api";
 
 type Stage = "load" | "intent" | "constraint" | "compare" | "apply" | "verify";
@@ -26,6 +28,9 @@ interface SandboxApi {
   applyDesign: (spec: DesignSpec, heroBlob?: Blob) => Promise<DocumentState>;
   applyRepairPatch: (candidate: CandidateResult) => Promise<PostApplyReport>;
   importCurrentDesign: () => Promise<{ state: DocumentState; spec: DesignSpec }>;
+  insertImageNodes: (
+    items: Array<{ name: string; dataB64: string; backgroundRemoved?: boolean }>
+  ) => Promise<DocumentState>;
   readDocumentState: () => Promise<DocumentState>;
   replaceImageNode: (nodeId: string, blob: Blob) => Promise<DocumentState>;
   verifyAppliedPatch: (candidate: CandidateResult) => Promise<PostApplyReport>;
@@ -120,6 +125,26 @@ function makeHarnessSandbox(getSpec: () => DesignSpec | null, setSpec: (s: Desig
       if (!spec) throw new Error("harness: load the demo campaign first (no real page to import)");
       return { state: stateOf(spec), spec };
     },
+    async insertImageNodes(items) {
+      const spec = getSpec();
+      if (!spec) throw new Error("harness: load a design first");
+      const patched = JSON.parse(JSON.stringify(spec));
+      let startY = 64;
+      for (const n of patched.nodes) startY = Math.max(startY, n.bbox[1] + n.bbox[3] + 40);
+      const CELL = 280, GAP = 24, COLS = 3;
+      items.forEach((item, i) => {
+        const col = i % COLS, row = Math.floor(i / COLS);
+        patched.nodes.push({
+          id: `webimg_harness_${i + 1}`,
+          type: "image",
+          role: "decoration",
+          bbox: [64 + col * (CELL + GAP), startY + row * (CELL + GAP), CELL, CELL],
+          asset_id: item.backgroundRemoved ? "web-bg-removed" : "web-imported",
+        });
+      });
+      setSpec(patched);
+      return stateOf(patched);
+    },
     async verifyAppliedPatch(candidate) {
       return this.applyRepairPatch(candidate);
     },
@@ -163,6 +188,10 @@ export default function App() {
   const [refSummary, setRefSummary] = useState("");
   const [assetError, setAssetError] = useState<string | null>(null);
   const [importNote, setImportNote] = useState<string | null>(null);
+  const [webUrl, setWebUrl] = useState("https://pin.it/6n1x4gD85");
+  const [webRemoveBg, setWebRemoveBg] = useState(false);
+  const [webImages, setWebImages] = useState<WebImage[]>([]);
+  const [webStatus, setWebStatus] = useState<string>("");
 
   const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const harness = urlParams.get("harness") === "1";
@@ -346,6 +375,43 @@ export default function App() {
     }
   }
 
+  async function runWebImport() {
+    setAssetError(null);
+    setWebStatus("fetching images…");
+    try {
+      const res = await importFromUrl(webUrl.trim(), webRemoveBg);
+      setWebImages(res.images);
+      setWebStatus(
+        `${res.kind}: ${res.images.length} image(s) imported` +
+        (res.errors.length ? ` · ${res.errors.length} failed` : "") +
+        (webRemoveBg ? " · backgrounds removed (local AI: u2net)" : "")
+      );
+    } catch (e) {
+      setWebStatus("");
+      setAssetError(String(e));
+    }
+  }
+
+  async function insertWebImages() {
+    if (!sandbox || webImages.length === 0) return;
+    setBusy(true);
+    try {
+      const state = await sandbox.insertImageNodes(
+        webImages.map((im) => ({
+          name: im.source_url.split("/").pop() ?? im.id,
+          dataB64: im.data_b64,
+          backgroundRemoved: im.background_removed,
+        }))
+      );
+      setDocState(state);
+      setWebStatus(`${webImages.length} image(s) inserted as native nodes`);
+    } catch (e) {
+      setAssetError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const stageIndex = STAGES.findIndex((s) => s.id === stage);
   const cards = response ? candidateCards(response.candidates, picked) : [];
 
@@ -503,6 +569,53 @@ export default function App() {
               </div>
             )}
             {assetError && <div className="issue blocking">{assetError}</div>}
+
+            <div className="webimport">
+              <h2>Import from web</h2>
+              <label className="fileline">
+                <span>Pinterest board/pin or web page URL — every image gets imported:</span>
+                <input
+                  style={{ padding: 6, border: "1px solid #ddd", borderRadius: 6, fontSize: 12 }}
+                  value={webUrl}
+                  onChange={(e) => setWebUrl(e.target.value)}
+                />
+              </label>
+              <label style={{ fontSize: 12, display: "flex", gap: 6, alignItems: "center" }}>
+                <input
+                  type="checkbox"
+                  checked={webRemoveBg}
+                  onChange={(e) => setWebRemoveBg(e.target.checked)}
+                />
+                remove backgrounds — local on-device AI (u2net, open-source)
+              </label>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button className="secondary" onClick={runWebImport} disabled={!webUrl.trim() || busy}>
+                  Fetch images
+                </button>
+                {webImages.length > 0 && (
+                  <button onClick={insertWebImages} disabled={busy}>
+                    Insert {webImages.length} into document
+                  </button>
+                )}
+              </div>
+              {webStatus && <div className="telemetry">{webStatus}</div>}
+              {webImages.length > 0 && (
+                <div className="thumblist">
+                  {webImages.map((im) => (
+                    <div key={im.id} className="thumb" title={im.note || im.source_url}>
+                      <img
+                        src={`data:${im.content_type};base64,${im.data_b64}`}
+                        alt={im.id}
+                      />
+                      <span>
+                        {im.width}×{im.height}
+                        {im.background_removed ? " · bg-removed" : ""}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <button onClick={() => setStage("constraint")}>Enter modification request</button>

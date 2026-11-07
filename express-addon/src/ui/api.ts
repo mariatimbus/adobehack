@@ -77,6 +77,30 @@ export async function inferRoles(spec: DesignSpec): Promise<{
   return post("/api/v1/design/infer-roles", { spec });
 }
 
+export interface WebImage {
+  id: string;
+  source_url: string;
+  width: number;
+  height: number;
+  content_type: string;
+  data_b64: string;
+  bytes: number;
+  background_removed: boolean;
+  model: string | null;
+  note: string;
+}
+
+export async function importFromUrl(url: string, removeBg: boolean): Promise<{
+  final_url: string;
+  kind: string;
+  images: WebImage[];
+  errors: Array<{ url: string; error: string }>;
+  provenance: string;
+  remove_bg_note: string;
+}> {
+  return post("/api/v1/import/url", { url, remove_bg: removeBg, model: "u2net" });
+}
+
 export async function preflight(candidate: unknown): Promise<unknown> {
   return post("/api/v1/verify/preflight", { candidate });
 }

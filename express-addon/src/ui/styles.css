@@ -139,3 +139,8 @@ textarea:focus { outline: 2px solid var(--spectrum-blue-500); border-color: tran
   font-size: 11px; font-family: ui-monospace, Menlo, monospace;
   white-space: pre-wrap; max-height: 220px; overflow: auto; margin: 0;
 }
+
+.webimport { border-top: 1px solid var(--spectrum-gray-200); padding-top: 8px; margin-top: 4px; display: flex; flex-direction: column; gap: 6px; }
+.thumblist { display: flex; flex-wrap: wrap; gap: 6px; max-height: 260px; overflow: auto; }
+.thumb { width: 84px; display: flex; flex-direction: column; gap: 2px; font-size: 10px; color: var(--spectrum-gray-700); }
+.thumb img { width: 84px; height: 84px; object-fit: contain; background: repeating-conic-gradient(#eee 0% 25%, #fff 0% 50%) 50% / 16px 16px; border: 1px solid var(--spectrum-gray-200); border-radius: 4px; }
