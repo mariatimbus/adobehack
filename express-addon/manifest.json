@@ -1,0 +1,21 @@
+{
+  "testId": "creative-dna",
+  "name": "CreativeDNA",
+  "version": "1.0.0",
+  "manifestVersion": 2,
+  "requirements": {
+    "apps": [{ "name": "Express", "version": "1.0" }]
+  },
+  "entryPoints": [
+    {
+      "type": "panel",
+      "id": "panel",
+      "main": "ui/index.html"
+    },
+    {
+      "type": "documentSandbox",
+      "id": "sandbox",
+      "main": "sandbox/code.js"
+    }
+  ]
+}
