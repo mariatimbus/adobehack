@@ -152,7 +152,9 @@ export default function App() {
   const [picked, setPicked] = useState<string | null>(null);
   const [report, setReport] = useState<PostApplyReport | null>(null);
   const [busy, setBusy] = useState(false);
+  const [initLog, setInitLog] = useState<string[]>([]);
   const specRef = React.useRef<DesignSpec | null>(null);
+  const logInit = (m: string) => setInitLog((prev) => [...prev, `${new Date().toLocaleTimeString()}  ${m}`]);
 
   // bring-your-own state
   const [heroCustom, setHeroCustom] = useState(false);
@@ -180,11 +182,22 @@ export default function App() {
     }
     (async () => {
       try {
-        await window.addOnUISdk!.ready;
-        const { runtime } = window.addOnUISdk!.instance;
-        const proxy = await runtime.apiProxy<SandboxApi>("documentSandbox");
+        logInit(`sdk script: ${typeof window.addOnUISdk === "object" ? "loaded" : "NOT LOADED"}`);
+        if (!window.addOnUISdk) {
+          throw new Error("add-on-sdk sdk.js did not load (script blocked or missing)");
+        }
+        await window.addOnUISdk.ready;
+        logInit("ready: resolved");
+        const inst = window.addOnUISdk.instance;
+        logInit(`instance: ${typeof inst} · runtime: ${typeof inst?.runtime}`);
+        const proxyPromise = inst.runtime.apiProxy<SandboxApi>("documentSandbox");
+        const timeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("TIMEOUT: sandbox never answered in 15s")), 15000));
+        const proxy = await Promise.race([proxyPromise, timeout]);
+        logInit("sandbox proxy: resolved");
         setSandbox(() => proxy);
       } catch (e) {
+        logInit(`FAILED: ${String(e).slice(0, 300)}`);
         setError(`Adobe SDK init failed: ${e}. Panel must run inside Adobe Express (or use ?harness=1 for UI development).`);
       }
     })();
@@ -345,6 +358,9 @@ export default function App() {
       </div>
 
       {error && <div className="banner">{error}</div>}
+      {!sandbox && initLog.length > 0 && (
+        <pre className="diag">{initLog.join("\n")}</pre>
+      )}
       {harness && (
         <div className="banner">
           DEV HARNESS — in-memory stand-in for the Adobe sandbox, for UI development outside
